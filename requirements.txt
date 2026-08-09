@@ -1,0 +1,5 @@
+pyswisseph==2.10.3.2
+geopy==2.5.0
+timezonefinder==8.2.5
+tzdata==2026.3
+pytest==8.3.4
