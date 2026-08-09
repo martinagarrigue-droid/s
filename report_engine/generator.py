@@ -124,7 +124,7 @@ def generate_report(
     Args:
         chart: dict devuelto por natal_engine.generate_natal_chart().
         api_key: opcional, ver report_engine.client.build_client.
-        model: id de modelo de Claude (default: claude-opus-5).
+        model: id de modelo de Claude (default: claude-opus-4-8).
         effort: nivel de esfuerzo/razonamiento ('low'..'max').
         max_tokens_per_section: limite de output por seccion.
         max_retries_per_section: reintentos ante errores retryables (429/5xx).

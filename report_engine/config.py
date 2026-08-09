@@ -4,10 +4,10 @@ Igual que en natal_engine/config.py: todo lo que sea "regla de producto"
 (tono, secciones, modelo) vive aca, separado de la logica de llamado a la API.
 """
 
-# claude-opus-5 es el default recomendado para este tipo de tarea (analitica,
-# generacion larga, alto ticket). Configurable via parametro o env var
-# ANTHROPIC_MODEL si se quiere bajar de tier por costo.
-DEFAULT_MODEL = "claude-opus-5"
+# claude-opus-4-8 es el default recomendado para este tipo de tarea
+# (analitica, generacion larga, alto ticket). Configurable por parametro --
+# bajar a "claude-sonnet-5" si el costo por informe pesa en el margen.
+DEFAULT_MODEL = "claude-opus-4-8"
 DEFAULT_EFFORT = "high"
 DEFAULT_MAX_TOKENS_PER_SECTION = 8000
 

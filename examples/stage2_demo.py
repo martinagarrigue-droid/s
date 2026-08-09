@@ -8,7 +8,7 @@ ANTHROPIC_API_KEY (nunca la hardcodees). En Colab:
     os.environ["ANTHROPIC_API_KEY"] = getpass("Anthropic API key: ")
 
 Genera 8 secciones (una llamada a la API por seccion) para el mismo dato de
-prueba de la Etapa 1. Con claude-opus-5 y effort=high esto tarda unos
+prueba de la Etapa 1. Con claude-opus-4-8 y effort=high esto tarda unos
 minutos y tiene un costo real de API -- no es gratis correrlo.
 
 Uso:

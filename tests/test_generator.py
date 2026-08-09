@@ -105,7 +105,7 @@ class FakeClient:
 
 def test_generate_section_success_returns_text_and_usage():
     client = FakeClient(lambda i, kw: make_response(text="Analisis del Sol."))
-    text, usage = _generate_section_text(client, [], "directiva", "claude-opus-5", "high", 8000, "test_section")
+    text, usage = _generate_section_text(client, [], "directiva", "claude-opus-4-8", "high", 8000, "test_section")
     assert text == "Analisis del Sol."
     assert usage["input_tokens"] == 100
     assert usage["cache_read_input_tokens"] == 20
@@ -115,7 +115,7 @@ def test_generate_section_success_returns_text_and_usage():
 def test_generate_section_retries_on_rate_limit_then_succeeds():
     responses = [rate_limit_error(), rate_limit_error(), make_response(text="OK tras reintentos.")]
     client = FakeClient(lambda i, kw: responses[i])
-    text, _usage = _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s")
+    text, _usage = _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s")
     assert text == "OK tras reintentos."
     assert len(client.messages.calls) == 3
 
@@ -123,7 +123,7 @@ def test_generate_section_retries_on_rate_limit_then_succeeds():
 def test_generate_section_retries_on_server_error_then_succeeds():
     responses = [server_error(), make_response(text="OK tras 500.")]
     client = FakeClient(lambda i, kw: responses[i])
-    text, _usage = _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s")
+    text, _usage = _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s")
     assert text == "OK tras 500."
     assert len(client.messages.calls) == 2
 
@@ -131,28 +131,28 @@ def test_generate_section_retries_on_server_error_then_succeeds():
 def test_generate_section_client_error_fails_immediately_no_retry():
     client = FakeClient(lambda i, kw: bad_request_error())
     with pytest.raises(LLMGenerationError):
-        _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s")
+        _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s")
     assert len(client.messages.calls) == 1
 
 
 def test_generate_section_raises_after_exhausting_retries():
     client = FakeClient(lambda i, kw: rate_limit_error())
     with pytest.raises(LLMGenerationError):
-        _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s", max_retries=2)
+        _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s", max_retries=2)
     assert len(client.messages.calls) == 2
 
 
 def test_generate_section_raises_llm_refusal_error():
     client = FakeClient(lambda i, kw: make_response(stop_reason="refusal", category="cyber"))
     with pytest.raises(LLMRefusalError, match="cyber"):
-        _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s")
+        _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s")
     assert len(client.messages.calls) == 1
 
 
 def test_generate_section_retries_on_empty_text_response():
     responses = [make_response(text="   "), make_response(text="Contenido real.")]
     client = FakeClient(lambda i, kw: responses[i])
-    text, _usage = _generate_section_text(client, [], "d", "claude-opus-5", "high", 8000, "s")
+    text, _usage = _generate_section_text(client, [], "d", "claude-opus-4-8", "high", 8000, "s")
     assert text == "Contenido real."
     assert len(client.messages.calls) == 2
 
