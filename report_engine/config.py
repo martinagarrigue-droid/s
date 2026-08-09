@@ -16,7 +16,7 @@ DEFAULT_MAX_TOKENS_PER_SECTION = 8000
 # natal_engine es todo en ingles a proposito, para no atarlo a un idioma).
 # ---------------------------------------------------------------------------
 SIGNS_ES = {
-    "Aries": "Aries", "Taurus": "Tauro", "Gemini": "Geminis", "Cancer": "Cancer",
+    "Aries": "Aries", "Taurus": "Tauro", "Gemini": "Géminis", "Cancer": "Cáncer",
     "Leo": "Leo", "Virgo": "Virgo", "Libra": "Libra", "Scorpio": "Escorpio",
     "Sagittarius": "Sagitario", "Capricorn": "Capricornio", "Aquarius": "Acuario",
     "Pisces": "Piscis",
@@ -24,15 +24,15 @@ SIGNS_ES = {
 
 BODIES_ES = {
     "Sun": "Sol", "Moon": "Luna", "Mercury": "Mercurio", "Venus": "Venus",
-    "Mars": "Marte", "Jupiter": "Jupiter", "Saturn": "Saturno", "Uranus": "Urano",
-    "Neptune": "Neptuno", "Pluto": "Pluton", "North Node": "Nodo Norte",
+    "Mars": "Marte", "Jupiter": "Júpiter", "Saturn": "Saturno", "Uranus": "Urano",
+    "Neptune": "Neptuno", "Pluto": "Plutón", "North Node": "Nodo Norte",
     "South Node": "Nodo Sur", "Ascendant": "Ascendente", "Midheaven": "Medio Cielo",
     "Descendant": "Descendente", "Imum Coeli": "Fondo del Cielo",
 }
 
 ASPECTS_ES = {
-    "conjunction": "conjuncion", "opposition": "oposicion", "square": "cuadratura",
-    "trine": "trigono", "sextile": "sextil",
+    "conjunction": "conjunción", "opposition": "oposición", "square": "cuadratura",
+    "trine": "trígono", "sextile": "sextil",
 }
 
 # ---------------------------------------------------------------------------
@@ -40,31 +40,31 @@ ASPECTS_ES = {
 # cambia entre clientes), separado del bloque de datos natales que se cachea
 # por-informe. Ver report_engine/generator.py para el uso de cache_control.
 # ---------------------------------------------------------------------------
-SYSTEM_TONE_INSTRUCTIONS = """Sos un analista psicologico que usa el lenguaje simbolico de la \
-astrologia como marco descriptivo de patrones de personalidad -- no como \
-prediccion, no como new age. Escribis para un cliente que paga por un \
-informe de alto nivel y espera profundidad analitica real, no un horoscopo \
+SYSTEM_TONE_INSTRUCTIONS = """Sos un analista psicológico que usa el lenguaje simbólico de la \
+astrología como marco descriptivo de patrones de personalidad -- no como \
+predicción, no como new age. Escribís para un cliente que paga por un \
+informe de alto nivel y espera profundidad analítica real, no un horóscopo \
 de revista.
 
 REGLAS DE TONO (no negociables):
-- Prohibido: lenguaje mistico ("el universo te tiene preparado...", "la \
-energia cosmica..."), predicciones deterministas ("vas a conocer a \
-alguien", "este anio te va a ir bien en..."), tono esoterico o de \
-autoayuda generica, frases que podrian aplicar a cualquier persona.
-- Cada posicion se describe en terminos de FUNCION psicologica: que \
-mecanismo activa, como se expresa cuando esta integrado (luz) y como se \
+- Prohibido: lenguaje místico ("el universo te tiene preparado...", "la \
+energía cósmica..."), predicciones deterministas ("vas a conocer a \
+alguien", "este año te va a ir bien en..."), tono esotérico o de \
+autoayuda genérica, frases que podrían aplicar a cualquier persona.
+- Cada posición se describe en términos de FUNCIÓN psicológica: qué \
+mecanismo activa, cómo se expresa cuando está integrado (luz) y cómo se \
 expresa cuando no (sombra). Nunca "bueno" o "malo" sin esa doble cara.
-- Cada afirmacion tiene que poder conectarse a un patron de comportamiento \
+- Cada afirmación tiene que poder conectarse a un patrón de comportamiento \
 observable, no a un destino o evento futuro.
 - Nada de disclaimers tipo "esto no determina tu personalidad" ni relleno \
-motivacional vacio.
-- Segunda persona ("vos", "tenes"), tono de analista agudo que no le tiene \
-miedo a nombrar lo incomodo, sin ser cruel porque si.
-- No repitas la definicion generica de cada signo o planeta como apertura \
-(evitar "Marte representa la accion"). Anda directo al analisis de ESTA \
-carta particular, con sus grados, casas y aspectos especificos.
-- Prosa corrida, sin bullet points ni tablas. Parrafos densos y trabajados, \
-como un informe clinico bien escrito, no una lista de caracteristicas."""
+motivacional vacío.
+- Segunda persona ("vos", "tenés"), tono de analista agudo que no le tiene \
+miedo a nombrar lo incómodo, sin ser cruel porque sí.
+- No repitas la definición genérica de cada signo o planeta como apertura \
+(evitar "Marte representa la acción"). Andá directo al análisis de ESTA \
+carta particular, con sus grados, casas y aspectos específicos.
+- Prosa corrida, sin bullet points ni tablas. Párrafos densos y trabajados, \
+como un informe clínico bien escrito, no una lista de características."""
 
 # ---------------------------------------------------------------------------
 # Secciones del informe, en orden de generacion. Cada seccion es una llamada
@@ -74,15 +74,15 @@ como un informe clinico bien escrito, no una lista de caracteristicas."""
 SECTIONS = [
     {
         "key": "introduccion",
-        "title": "Introduccion operativa",
+        "title": "Introducción operativa",
         "kind": "intro",
         "directive": (
-            "Escribi la introduccion operativa del informe (aprox. 1 pagina). "
-            "Presenta el marco general de esta carta: el patron dominante que "
+            "Escribí la introducción operativa del informe (aprox. 1 página). "
+            "Presenta el marco general de esta carta: el patrón dominante que "
             "atraviesa todo (elemento o modalidad predominante si hay uno "
-            "claro, la tension o el eje central que organiza la personalidad), "
-            "y como se va a leer el resto del informe. No repitas datos "
-            "tecnicos (signos, grados) que se van a desarrollar despues -- "
+            "claro, la tensión o el eje central que organiza la personalidad), "
+            "y cómo se va a leer el resto del informe. No repitas datos "
+            "técnicos (signos, grados) que se van a desarrollar después -- "
             "esto es el mapa, no el territorio."
         ),
     },
@@ -92,12 +92,12 @@ SECTIONS = [
         "kind": "planets",
         "bodies": ["Sun", "Moon", "Ascendant"],
         "directive": (
-            "Analiza en profundidad el trio Sol-Luna-Ascendente de esta carta: "
-            "el motor de identidad consciente (Sol), el patron emocional "
-            "automatico (Luna) y la interfaz con la que la persona se "
+            "Analizá en profundidad el trío Sol-Luna-Ascendente de esta carta: "
+            "el motor de identidad consciente (Sol), el patrón emocional "
+            "automático (Luna) y la interfaz con la que la persona se "
             "presenta y procesa el entorno (Ascendente). No los trates como "
-            "tres bloques separados -- señala donde se refuerzan, donde "
-            "friccionan entre si, y que combinacion resulta unica en esta carta."
+            "tres bloques separados -- señalá dónde se refuerzan, dónde "
+            "friccionan entre sí, y qué combinación resulta única en esta carta."
         ),
     },
     {
@@ -106,22 +106,22 @@ SECTIONS = [
         "kind": "planets",
         "bodies": ["Mercury", "Venus", "Mars"],
         "directive": (
-            "Analiza Mercurio (estilo cognitivo y de comunicacion), Venus "
-            "(patron de vinculo y de deseo) y Marte (como se moviliza el "
-            "impulso, la agresion y la asertividad) en esta carta especifica. "
-            "Luces y sombras funcionales de cada uno segun su signo, casa y "
+            "Analizá Mercurio (estilo cognitivo y de comunicación), Venus "
+            "(patrón de vínculo y de deseo) y Marte (cómo se moviliza el "
+            "impulso, la agresión y la asertividad) en esta carta específica. "
+            "Luces y sombras funcionales de cada uno según su signo, casa y "
             "aspectos principales."
         ),
     },
     {
         "key": "estructura_expansion",
-        "title": "Estructura y expansion",
+        "title": "Estructura y expansión",
         "kind": "planets",
         "bodies": ["Jupiter", "Saturn"],
         "directive": (
-            "Analiza Jupiter (donde busca expansion, sentido y exceso) y "
-            "Saturno (donde construye estructura, y donde opera el miedo o "
-            "la autoexigencia) en esta carta. Esta es la tension central "
+            "Analizá Júpiter (dónde busca expansión, sentido y exceso) y "
+            "Saturno (dónde construye estructura, y dónde opera el miedo o "
+            "la autoexigencia) en esta carta. Esta es la tensión central "
             "entre expandirse y contenerse -- desarrollala como tal, no como "
             "dos entradas independientes."
         ),
@@ -132,25 +132,25 @@ SECTIONS = [
         "kind": "planets",
         "bodies": ["Uranus", "Neptune", "Pluto"],
         "directive": (
-            "Analiza Urano, Neptuno y Pluton en esta carta -- foco en la casa "
-            "donde caen (que es lo personal/individual de una energia "
+            "Analizá Urano, Neptuno y Plutón en esta carta -- foco en la casa "
+            "donde caen (que es lo personal/individual de una energía "
             "generacional) y en los aspectos que forman con planetas "
-            "personales. Evita el tono grandilocuente tipico de estos tres; "
-            "trata cada uno como un patron psicologico especifico y "
-            "funcional, no como una fuerza cosmica."
+            "personales. Evitá el tono grandilocuente típico de estos tres; "
+            "tratá cada uno como un patrón psicológico específico y "
+            "funcional, no como una fuerza cósmica."
         ),
     },
     {
         "key": "ejes_proposito",
-        "title": "Ejes de proposito y vocacion",
+        "title": "Ejes de propósito y vocación",
         "kind": "planets",
         "bodies": ["North Node", "South Node", "Midheaven"],
         "directive": (
-            "Analiza el eje Nodo Norte / Nodo Sur (la direccion de "
-            "crecimiento versus la zona de confort automatica) y el Medio "
-            "Cielo (la imagen publica y vocacional) de esta carta. Conecta "
-            "explicitamente esto con lo ya descrito en identidad nuclear: "
-            "hacia donde empuja el desarrollo de esta persona."
+            "Analizá el eje Nodo Norte / Nodo Sur (la dirección de "
+            "crecimiento versus la zona de confort automática) y el Medio "
+            "Cielo (la imagen pública y vocacional) de esta carta. Conectá "
+            "explícitamente esto con lo ya descrito en identidad nuclear: "
+            "hacia dónde empuja el desarrollo de esta persona."
         ),
     },
     {
@@ -159,26 +159,26 @@ SECTIONS = [
         "kind": "aspects",
         "directive": (
             "Tomando la lista completa de aspectos mayores de esta carta, "
-            "identifica y desarrolla los 3 a 5 patrones estructurales mas "
-            "relevantes (los de orbe mas ajustado, los que involucran "
-            "luminarias o angulos, o los que se repiten formando una figura "
+            "identificá y desarrollá los 3 a 5 patrones estructurales más "
+            "relevantes (los de orbe más ajustado, los que involucran "
+            "luminarias o ángulos, o los que se repiten formando una figura "
             "-- ej. varios aspectos sobre el mismo planeta). No listes todos "
-            "los aspectos uno por uno: identifica el patron que organizan en "
-            "conjunto y que dice sobre como esta persona maneja tension "
+            "los aspectos uno por uno: identificá el patrón que organizan en "
+            "conjunto y qué dice sobre cómo esta persona maneja tensión "
             "interna versus fluidez."
         ),
     },
     {
         "key": "sintesis",
-        "title": "Sintesis final accionable",
+        "title": "Síntesis final accionable",
         "kind": "synthesis",
         "directive": (
-            "Cerra el informe con una sintesis final accionable (aprox. 1 "
-            "pagina). No repitas lo ya dicho seccion por seccion -- integra "
+            "Cerrá el informe con una síntesis final accionable (aprox. 1 "
+            "página). No repitas lo ya dicho sección por sección -- integrá "
             "los patrones centrales de la carta en una lectura unificada de "
-            "hacia donde tiende esta personalidad bajo presion y en su mejor "
-            "version, y que es lo primero que valdria la pena trabajar. Tiene "
-            "que leerse como una conclusion clinica, no como un resumen."
+            "hacia dónde tiende esta personalidad bajo presión y en su mejor "
+            "versión, y qué es lo primero que valdría la pena trabajar. Tiene "
+            "que leerse como una conclusión clínica, no como un resumen."
         ),
     },
 ]

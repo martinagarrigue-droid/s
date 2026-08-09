@@ -1,6 +1,6 @@
-"""Configuracion de la Etapa 3: textos fijos de la portada y presentacion.
+"""Configuración de la Etapa 3: textos fijos de la portada y presentación.
 
-El diseño (color, tipografia, layout) vive en styles.css -- este archivo es
+El diseño (color, tipografía, layout) vive en styles.css -- este archivo es
 solo texto y datos, para no mezclar contenido con estilo.
 """
 

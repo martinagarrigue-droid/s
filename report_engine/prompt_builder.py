@@ -45,7 +45,7 @@ def format_natal_summary(chart: dict) -> str:
     lines.append(f"Sistema de casas: {meta['engine']['house_system']}")
     lines.append("")
 
-    lines.append("=== ANGULOS ===")
+    lines.append("=== ÁNGULOS ===")
     for angle_key, label in (
         ("ascendant", "Ascendente"), ("midheaven", "Medio Cielo"),
         ("descendant", "Descendente"), ("imum_coeli", "Fondo del Cielo"),
@@ -56,7 +56,7 @@ def format_natal_summary(chart: dict) -> str:
 
     lines.append("=== PLANETAS Y PUNTOS ===")
     for planet in chart["planets"]:
-        retro = " (retrogrado)" if planet["retrograde"] else ""
+        retro = " (retrógrado)" if planet["retrograde"] else ""
         lines.append(
             f"{_body_es(planet['name'])}: {_sign_es(planet['sign'])} "
             f"{_format_degree(planet['sign_degree'])}, casa {planet['house']}{retro}"
