@@ -1,0 +1,153 @@
+/* Estetica minimalista "alto estatus": tipografia sobria, paleta acotada,
+   mucho espacio en blanco. Sin logos, sin iconos, sin color decorativo. */
+
+@page cover {
+  size: A4;
+  margin: 0;
+  /* La pagina de portada consume un slot en el contador de paginas de CSS
+     paginado aunque no muestre numero. Reiniciar aca (no en @page content)
+     es la forma que efectivamente funciona en weasyprint: hace que la
+     primera pagina de contenido arranque mostrando "1". */
+  counter-reset: page 0;
+}
+
+@page content {
+  size: A4;
+  margin: 3cm 2.4cm 3cm 2.4cm;
+
+  @bottom-center {
+    content: counter(page);
+    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    color: #9a9484;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Liberation Serif", Georgia, "Times New Roman", serif;
+  color: #1c1c1a;
+  font-size: 11pt;
+  line-height: 1.65;
+}
+
+/* --- Portada ------------------------------------------------------------ */
+
+.cover {
+  page: cover;
+  break-after: page;
+  width: 21cm;
+  height: 29.7cm;
+  padding: 4cm 3cm;
+  background: #fbfaf7;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.cover-eyebrow {
+  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+  font-size: 10pt;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8a8577;
+}
+
+.cover-main {
+  margin-top: 6cm;
+}
+
+.cover-name {
+  font-size: 34pt;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  margin: 0 0 0.6cm 0;
+}
+
+.cover-rule {
+  width: 3.2cm;
+  height: 1px;
+  background: #c9c3b3;
+  margin: 0.8cm 0;
+}
+
+.cover-data {
+  font-size: 10.5pt;
+  color: #4a473f;
+  line-height: 2;
+}
+
+.cover-data .row {
+  display: block;
+}
+
+.cover-data .label {
+  display: inline-block;
+  width: 3.6cm;
+  color: #9a9484;
+  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+  font-size: 8.5pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cover-footer {
+  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+  font-size: 8pt;
+  color: #b2ac9c;
+  letter-spacing: 0.04em;
+}
+
+/* --- Cuerpo del informe --------------------------------------------------- */
+
+.content {
+  page: content;
+}
+
+.report-section {
+  break-before: page;
+}
+
+.report-section:first-child {
+  break-before: avoid;
+}
+
+.report-section h2 {
+  font-size: 15pt;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #1c1c1a;
+  margin: 0 0 0.9cm 0;
+  padding-bottom: 0.35cm;
+  border-bottom: 1px solid #c9c3b3;
+}
+
+.report-section p {
+  margin: 0 0 0.55cm 0;
+  text-align: justify;
+  hyphens: auto;
+  orphans: 3;
+  widows: 3;
+}
+
+.report-section ul {
+  margin: 0 0 0.55cm 0;
+  padding-left: 1.1cm;
+}
+
+.report-section li {
+  margin-bottom: 0.25cm;
+}
+
+.report-section strong {
+  font-weight: 700;
+}
+
+.report-section em {
+  font-style: italic;
+}
