@@ -37,7 +37,7 @@
       <h1 class="headline">La luz que te precede</h1>
       <p class="lede">Cartas natales leídas como fenómenos ópticos: temperatura, densidad y dirección de tu aura en el momento exacto en que llegaste.</p>
       <div class="cta-row">
-        <a href="#" class="btn btn-primary">Calcular mi carta</a>
+        <button type="button" class="btn btn-primary" id="calc-open">Calcular mi carta</button>
         <a href="#" class="btn btn-secondary">Ver los doce</a>
       </div>
     </main>
@@ -48,7 +48,45 @@
     </footer>
 
   </div>
+
+  <div class="modal-overlay" id="calc-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calc-title">
+      <button type="button" class="modal-close" id="calc-close" aria-label="Cerrar">×</button>
+
+      <div class="modal-eyebrow">Calcular carta</div>
+      <h2 id="calc-title" class="modal-title">Tus coordenadas de nacimiento</h2>
+
+      <form id="calc-form" class="calc-form" novalidate>
+        <label class="field">
+          <span class="field-label">Fecha de nacimiento</span>
+          <input type="date" name="date" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Hora exacta</span>
+          <input type="time" name="time" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Lugar de nacimiento</span>
+          <input type="text" name="location" placeholder="Ciudad, país" autocomplete="off" required>
+        </label>
+
+        <p class="calc-status" id="calc-status" role="status" aria-live="polite" hidden></p>
+        <p class="calc-error" id="calc-error" role="alert" hidden></p>
+
+        <button type="submit" class="btn btn-primary calc-submit" id="calc-submit">Calcular mi carta</button>
+      </form>
+
+      <div class="calc-result" id="calc-result" hidden>
+        <div class="modal-eyebrow">Tu informe</div>
+        <p class="calc-result-subject" id="calc-result-subject"></p>
+        <div class="calc-result-text" id="calc-result-text"></div>
+        <a href="#" class="btn btn-secondary calc-download" id="calc-download" target="_blank" rel="noopener">Descargar PDF</a>
+      </div>
+    </div>
+  </div>
+
 </div>
 
+<script src="/static/js/app.js" defer></script>
 </body>
 </html>

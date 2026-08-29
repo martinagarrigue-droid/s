@@ -180,6 +180,10 @@ a:hover {
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
 .btn-primary {
@@ -211,4 +215,158 @@ a:hover {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: #8B8274;
+}
+
+/* ---- Calculadora de carta: modal ---- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(33, 29, 26, 0.55);
+}
+
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #F7F4EC;
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(33, 29, 26, 0.28);
+  padding: clamp(28px, 5vw, 44px);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: #2A2622;
+}
+
+.modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  font-family: inherit;
+  color: #6E6558;
+}
+
+.modal-close:hover {
+  color: #8E2530;
+}
+
+.modal-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8E2530;
+  margin-bottom: 10px;
+}
+
+.modal-title {
+  margin: 0 0 24px;
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-weight: 400;
+  font-size: clamp(24px, 4vw, 32px);
+  line-height: 1.1;
+  color: #211D1A;
+}
+
+.calc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6E6558;
+}
+
+.field input {
+  font-family: inherit;
+  font-size: 14px;
+  color: #211D1A;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(42, 38, 34, 0.28);
+  padding: 8px 2px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.field input:focus {
+  border-color: #8E2530;
+}
+
+.calc-status {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8E2530;
+  animation: calc-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes calc-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.calc-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8E2530;
+}
+
+.calc-submit {
+  margin-top: 6px;
+  width: 100%;
+  justify-content: center;
+}
+
+.calc-submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.calc-result-subject {
+  margin: 0 0 16px;
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-size: clamp(20px, 3vw, 26px);
+  color: #211D1A;
+}
+
+.calc-result-text {
+  max-height: 40vh;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #5D5548;
+  white-space: pre-wrap;
+  padding-right: 4px;
+  margin-bottom: 20px;
+}
+
+.calc-download {
+  width: 100%;
+  justify-content: center;
 }
