@@ -1,0 +1,214 @@
+body {
+  margin: 0;
+  background: #F1EDE4;
+  overflow-x: hidden;
+}
+
+a {
+  color: #6B4A3A;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #8E2530;
+}
+
+.page {
+  min-height: 100vh;
+  background: #F1EDE4;
+  position: relative;
+  overflow: visible;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: #2A2622;
+}
+
+/* Fine photographic grain over the whole page, breaks up the flat digital background */
+.noise-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27220%27 height=%27220%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3CfeColorMatrix type=%27saturate%27 values=%270%27/%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27 opacity=%270.4%27/%3E%3C/svg%3E');
+}
+
+/* Fire-element aura: ruby/amber light source, accent-sized, anchored top-right */
+.aura {
+  position: absolute;
+  right: -2%;
+  top: 22vh;
+  width: clamp(260px, 34vw, 440px);
+  aspect-ratio: 1;
+  pointer-events: none;
+  overflow: visible;
+  transform: scale(1.12);
+  transform-origin: 60% 40%;
+}
+
+.aura-body {
+  position: absolute;
+  inset: -7%;
+  border-radius: 50%;
+  overflow: visible;
+  filter: blur(48px);
+  background: radial-gradient(circle at 38% 34%,
+    rgba(255,208,124,1) 0%,
+    rgba(248,164,68,1) 16%,
+    rgba(206,74,40,1) 26%,
+    rgba(155,17,30,1) 36%,
+    rgba(155,17,30,1) 56%,
+    rgba(150,20,32,0.62) 72%,
+    rgba(160,40,38,0.20) 88%,
+    rgba(190,90,60,0) 100%);
+}
+
+.aura-core {
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  transform: translate(-16%, -18%);
+  mix-blend-mode: screen;
+  filter: blur(26px);
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255,230,172,0.92) 0%,
+    rgba(255,190,92,0.52) 22%,
+    rgba(238,138,52,0.16) 34%,
+    rgba(214,96,44,0) 46%);
+}
+
+.aura-grain {
+  position: absolute;
+  inset: -7%;
+  border-radius: 50%;
+  mix-blend-mode: overlay;
+  opacity: 0.16;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle at 38% 34%, #000 0%, #000 46%, rgba(0,0,0,0.45) 72%, rgba(0,0,0,0) 100%);
+  mask-image: radial-gradient(circle at 38% 34%, #000 0%, #000 46%, rgba(0,0,0,0.45) 72%, rgba(0,0,0,0) 100%);
+  background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27180%27 height=%27180%27%3E%3Cfilter id=%27glitter%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%271.2%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3CfeColorMatrix type=%27saturate%27 values=%270%27/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=%27linear%27 slope=%271.6%27 intercept=%27-0.18%27/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23glitter)%27/%3E%3C/svg%3E');
+}
+
+.layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: clamp(28px, 5vw, 64px) clamp(24px, 6vw, 96px);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.wordmark {
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-size: clamp(19px, 2vw, 26px);
+  font-weight: 400;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: #2A2622;
+}
+
+.wordmark-accent {
+  font-weight: 500;
+  color: #9AA0A6;
+}
+
+.nav {
+  display: flex;
+  gap: clamp(16px, 2.4vw, 34px);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6E6558;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: min(680px, 58vw);
+  padding: clamp(40px, 8vh, 110px) 0;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8E2530;
+  margin-bottom: clamp(20px, 3vh, 34px);
+}
+
+.headline {
+  margin: 0;
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-weight: 400;
+  font-size: clamp(46px, 8.4vw, 132px);
+  max-width: 9ch;
+  line-height: 0.94;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
+  color: #211D1A;
+}
+
+.lede {
+  max-width: 46ch;
+  margin: clamp(24px, 4vh, 40px) 0 0;
+  font-size: clamp(13px, 1.1vw, 15px);
+  line-height: 1.75;
+  color: #5D5548;
+  text-wrap: pretty;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: clamp(28px, 4.5vh, 48px);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 15px 30px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.btn-primary {
+  background: #211D1A;
+  color: #F1EDE4;
+}
+
+.btn-primary:hover {
+  background: #8E2530;
+  color: #F5F1E8;
+}
+
+.btn-secondary {
+  border: 1px solid rgba(42,38,34,0.28);
+  color: #3A342C;
+}
+
+.btn-secondary:hover {
+  border-color: #8E2530;
+  color: #8E2530;
+}
+
+.footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8B8274;
+}
