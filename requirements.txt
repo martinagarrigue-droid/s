@@ -6,3 +6,6 @@ anthropic==0.121.0
 weasyprint==69.0
 pytest==8.3.4
 pypdf==6.15.0
+fastapi
+uvicorn
+jinja2
