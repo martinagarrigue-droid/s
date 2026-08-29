@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var openBtn = document.getElementById("calc-open");
+  var openBtns = document.querySelectorAll(".js-open-calculator");
   var overlay = document.getElementById("calc-overlay");
   var closeBtn = document.getElementById("calc-close");
   var form = document.getElementById("calc-form");
@@ -34,9 +34,11 @@
     submitBtn.textContent = "Calcular mi carta";
   }
 
-  openBtn.addEventListener("click", function () {
-    resetView();
-    openModal();
+  openBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      resetView();
+      openModal();
+    });
   });
 
   closeBtn.addEventListener("click", closeModal);

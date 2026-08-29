@@ -11,11 +11,11 @@
 </head>
 <body>
 
-<div class="page">
+<div class="page" id="carta">
 
   <div class="noise-overlay"></div>
 
-  <div class="aura">
+  <div class="aura element-tierra">
     <div class="aura-body"></div>
     <div class="aura-core"></div>
     <div class="aura-grain"></div>
@@ -26,25 +26,25 @@
     <header class="header">
       <div class="wordmark">SID<span class="wordmark-accent">É</span>REA</div>
       <nav class="nav">
-        <a href="#">Carta</a>
-        <a href="#">Signos</a>
-        <a href="#">Tránsitos</a>
+        <a href="#carta">Carta</a>
+        <a href="#signos">Signos</a>
+        <a href="#transitos">Tránsitos</a>
       </nav>
     </header>
 
     <main class="main">
-      <div class="eyebrow">Elemento fuego</div>
+      <div class="eyebrow">Elemento tierra</div>
       <h1 class="headline">La luz que te precede</h1>
       <p class="lede">Cartas natales leídas como fenómenos ópticos: temperatura, densidad y dirección de tu aura en el momento exacto en que llegaste.</p>
       <div class="cta-row">
-        <button type="button" class="btn btn-primary" id="calc-open">Calcular mi carta</button>
-        <a href="#" class="btn btn-secondary">Ver los doce</a>
+        <button type="button" class="btn btn-primary js-open-calculator" id="calc-open">Calcular mi carta</button>
+        <a href="#signos" class="btn btn-secondary">Ver los doce</a>
       </div>
     </main>
 
     <footer class="footer">
       <span>Buenos Aires · 34°36′ S</span>
-      <span>01 / Aries · Leo · Sagitario</span>
+      <span>02 / Tauro · Virgo · Capricornio</span>
     </footer>
 
   </div>
@@ -86,6 +86,101 @@
   </div>
 
 </div>
+
+<section id="signos" class="section signos-section">
+  <div class="section-inner">
+    <div class="eyebrow">Los doce</div>
+    <h2 class="section-title">Signos</h2>
+    <p class="section-lede">Doce lecturas de temperamento, no de destino: cómo procesa la información, decide y se vincula cada arquetipo.</p>
+
+    <div class="signs-grid">
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Aries</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">21 mar — 19 abr · Fuego</div>
+        <p class="sign-text">Procesa el mundo por impulso de acción: decide rápido, prueba en el terreno y corrige sobre la marcha antes que planificar en exceso. Su fricción aparece cuando la paciencia ajena no sigue su ritmo.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Tauro</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">20 abr — 20 may · Tierra</div>
+        <p class="sign-text">Necesita evidencia sensorial antes de comprometerse: lo que puede tocar, medir o repetir le da certeza. Cambia de opinión despacio, pero cuando lo hace, el cambio es sólido y difícil de revertir.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Géminis</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">21 may — 20 jun · Aire</div>
+        <p class="sign-text">Piensa en red, no en línea recta: conecta datos dispersos con una velocidad que a veces se confunde con dispersión. Su fortaleza es la síntesis rápida; su costo, sostener el foco en una sola variable.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Cáncer</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">21 jun — 22 jul · Agua</div>
+        <p class="sign-text">Filtra la información a través de la memoria afectiva: recuerda cómo se sintió una situación antes que los hechos exactos. Construye seguridad por repetición de vínculos conocidos, no por novedad.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Leo</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">23 jul — 22 ago · Fuego</div>
+        <p class="sign-text">Necesita ver el efecto de sus acciones para calibrar si va por buen camino: la retroalimentación externa no es vanidad, es información. Rinde mejor cuando lidera con nombre propio que cuando diluye su aporte en un colectivo anónimo.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Virgo</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">23 ago — 22 sep · Tierra</div>
+        <p class="sign-text">Ordena antes de actuar: separa variables, detecta el error de proceso y corrige con precisión quirúrgica. Su riesgo no es la exigencia — es confundir la corrección del sistema con la corrección de la persona.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Libra</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">23 sep — 22 oct · Aire</div>
+        <p class="sign-text">Decide comparando escenarios en simultáneo, sopesando cada variable frente a su opuesto antes de resolver. Necesita el punto de vista ajeno no por dependencia, sino porque su método de pensar es esencialmente relacional.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Escorpio</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">23 oct — 21 nov · Agua</div>
+        <p class="sign-text">Investiga antes de confiar: necesita entender el mecanismo real detrás de una situación o un vínculo antes de comprometerse con él. Su intensidad no busca el conflicto — busca la información sin filtrar.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Sagitario</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">22 nov — 21 dic · Fuego</div>
+        <p class="sign-text">Aprende expandiendo el marco, no profundizando uno solo: prefiere el mapa amplio a la nota al pie. Se aburre con la repetición sin propósito y necesita un horizonte visible para sostener el compromiso.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Capricornio</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">22 dic — 19 ene · Tierra</div>
+        <p class="sign-text">Construye en plazos largos: mide el esfuerzo de hoy contra un resultado que puede tardar años en confirmarse. Su disciplina no es rigidez — es una apuesta calculada por la estructura sobre el impulso.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Acuario</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">20 ene — 18 feb · Aire</div>
+        <p class="sign-text">Piensa por sistemas, no por casos individuales: le interesa el patrón que explica muchos comportamientos antes que la excepción anecdótica. Su distancia emocional aparente suele ser objetividad mal leída.</p>
+      </details>
+
+      <details class="sign-card">
+        <summary><span class="sign-name">Piscis</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <div class="sign-meta">19 feb — 20 mar · Agua</div>
+        <p class="sign-text">Absorbe el estado emocional del entorno con una permeabilidad que funciona como radar y como vulnerabilidad. Necesita límites explícitos — no porque le falte carácter, sino porque su frontera perceptiva es naturalmente porosa.</p>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<section id="transitos" class="section transitos-section">
+  <div class="section-inner">
+    <div class="eyebrow">Semana en curso</div>
+    <h2 class="section-title">Tránsitos</h2>
+    <p class="transitos-dateline">25 de agosto — 21 de septiembre, 2026 · Sol en Virgo</p>
+    <p class="transitos-body">El Sol cierra su tránsito por Virgo esta semana: un clima colectivo inclinado al detalle, la corrección de procesos y la salud de los sistemas que sostenemos — el cuerpo, el trabajo, la rutina. No es la temporada de las decisiones grandes; es la de ajustar lo que ya está en marcha antes de que el equinoccio empuje todo hacia Libra y la balanza de lo relacional.</p>
+    <p class="transitos-hook">Esta lectura es de clima general. Dónde cae exactamente — qué casa, qué aspecto activa — depende de tu configuración natal.</p>
+    <button type="button" class="btn btn-primary js-open-calculator">Ver mi carta natal</button>
+  </div>
+</section>
 
 <script src="/static/js/app.js" defer></script>
 </body>

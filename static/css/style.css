@@ -1,3 +1,7 @@
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   background: #F1EDE4;
@@ -20,6 +24,7 @@ a:hover {
   overflow: visible;
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
   color: #2A2622;
+  scroll-margin-top: 0;
 }
 
 /* Fine photographic grain over the whole page, breaks up the flat digital background */
@@ -32,7 +37,10 @@ a:hover {
   background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27220%27 height=%27220%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3CfeColorMatrix type=%27saturate%27 values=%270%27/%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27 opacity=%270.4%27/%3E%3C/svg%3E');
 }
 
-/* Fire-element aura: ruby/amber light source, accent-sized, anchored top-right */
+/* Seasonal aura: eccentric radial light source, accent-sized, anchored
+   top-right. Color is driven entirely by CSS custom properties so each
+   `.element-*` class can swap the palette without touching the gradient
+   stops, blur, blend-mode, or bleed geometry below. */
 .aura {
   position: absolute;
   right: -2%;
@@ -43,6 +51,65 @@ a:hover {
   overflow: visible;
   transform: scale(1.12);
   transform-origin: 60% 40%;
+
+  /* Fuego (default): ámbar cálido → rubí profundo */
+  --aura-0: rgba(255,208,124,1);
+  --aura-1: rgba(248,164,68,1);
+  --aura-2: rgba(206,74,40,1);
+  --aura-3: rgba(155,17,30,1);
+  --aura-4: rgba(150,20,32,0.62);
+  --aura-5: rgba(160,40,38,0.20);
+  --aura-6: rgba(190,90,60,0);
+  --aura-core-0: rgba(255,230,172,0.92);
+  --aura-core-1: rgba(255,190,92,0.52);
+  --aura-core-2: rgba(238,138,52,0.16);
+  --aura-core-3: rgba(214,96,44,0);
+}
+
+/* Tierra (Tauro/Virgo/Capricornio): ámbar tostado → olivo profundo sutil.
+   Temporada activa en el hero: Sol en Virgo. */
+.aura.element-tierra {
+  --aura-0: rgba(230,198,140,1);
+  --aura-1: rgba(196,152,80,1);
+  --aura-2: rgba(146,128,68,1);
+  --aura-3: rgba(94,98,58,1);
+  --aura-4: rgba(94,98,58,0.6);
+  --aura-5: rgba(126,116,76,0.22);
+  --aura-6: rgba(160,150,112,0);
+  --aura-core-0: rgba(238,214,164,0.9);
+  --aura-core-1: rgba(210,176,110,0.5);
+  --aura-core-2: rgba(150,140,82,0.16);
+  --aura-core-3: rgba(122,112,72,0);
+}
+
+/* Aire (Géminis/Libra/Acuario): plata luminoso → gris azulado */
+.aura.element-aire {
+  --aura-0: rgba(240,242,244,1);
+  --aura-1: rgba(206,214,220,1);
+  --aura-2: rgba(150,166,178,1);
+  --aura-3: rgba(90,108,124,1);
+  --aura-4: rgba(90,108,124,0.6);
+  --aura-5: rgba(120,138,150,0.2);
+  --aura-6: rgba(170,182,190,0);
+  --aura-core-0: rgba(248,250,252,0.92);
+  --aura-core-1: rgba(214,224,230,0.52);
+  --aura-core-2: rgba(150,170,182,0.16);
+  --aura-core-3: rgba(110,128,140,0);
+}
+
+/* Agua (Cáncer/Escorpio/Piscis): celeste claro → zafiro profundo */
+.aura.element-agua {
+  --aura-0: rgba(200,228,240,1);
+  --aura-1: rgba(140,190,220,1);
+  --aura-2: rgba(70,120,170,1);
+  --aura-3: rgba(30,60,120,1);
+  --aura-4: rgba(30,60,120,0.62);
+  --aura-5: rgba(50,80,140,0.2);
+  --aura-6: rgba(90,120,170,0);
+  --aura-core-0: rgba(220,240,250,0.92);
+  --aura-core-1: rgba(160,205,230,0.52);
+  --aura-core-2: rgba(80,130,180,0.16);
+  --aura-core-3: rgba(50,90,150,0);
 }
 
 .aura-body {
@@ -52,14 +119,14 @@ a:hover {
   overflow: visible;
   filter: blur(48px);
   background: radial-gradient(circle at 38% 34%,
-    rgba(255,208,124,1) 0%,
-    rgba(248,164,68,1) 16%,
-    rgba(206,74,40,1) 26%,
-    rgba(155,17,30,1) 36%,
-    rgba(155,17,30,1) 56%,
-    rgba(150,20,32,0.62) 72%,
-    rgba(160,40,38,0.20) 88%,
-    rgba(190,90,60,0) 100%);
+    var(--aura-0) 0%,
+    var(--aura-1) 16%,
+    var(--aura-2) 26%,
+    var(--aura-3) 36%,
+    var(--aura-3) 56%,
+    var(--aura-4) 72%,
+    var(--aura-5) 88%,
+    var(--aura-6) 100%);
 }
 
 .aura-core {
@@ -70,10 +137,10 @@ a:hover {
   mix-blend-mode: screen;
   filter: blur(26px);
   background: radial-gradient(circle at 50% 50%,
-    rgba(255,230,172,0.92) 0%,
-    rgba(255,190,92,0.52) 22%,
-    rgba(238,138,52,0.16) 34%,
-    rgba(214,96,44,0) 46%);
+    var(--aura-core-0) 0%,
+    var(--aura-core-1) 22%,
+    var(--aura-core-2) 34%,
+    var(--aura-core-3) 46%);
 }
 
 .aura-grain {
@@ -217,6 +284,139 @@ a:hover {
   color: #8B8274;
 }
 
+/* ---- Secciones editoriales (Signos, Tránsitos) ---- */
+
+.section {
+  position: relative;
+  background: #F1EDE4;
+  border-top: 1px solid rgba(42, 38, 34, 0.12);
+  padding: clamp(64px, 10vh, 120px) clamp(24px, 6vw, 96px);
+  scroll-margin-top: clamp(24px, 4vh, 48px);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: #2A2622;
+}
+
+.section-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.section-title {
+  margin: 10px 0 0;
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-weight: 400;
+  font-size: clamp(36px, 6vw, 64px);
+  line-height: 1;
+  color: #211D1A;
+}
+
+.section-lede {
+  max-width: 52ch;
+  margin: clamp(18px, 3vh, 28px) 0 0;
+  font-size: clamp(13px, 1.1vw, 15px);
+  line-height: 1.75;
+  color: #5D5548;
+}
+
+/* Signos: grilla minimalista y espaciada, doce lecturas fijas de temperamento */
+
+.signs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: clamp(28px, 4vw, 48px) clamp(32px, 5vw, 56px);
+  margin-top: clamp(40px, 6vh, 64px);
+}
+
+.sign-card {
+  border-top: 1px solid rgba(42, 38, 34, 0.16);
+  padding-top: 18px;
+}
+
+.sign-card summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sign-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.sign-name {
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-weight: 400;
+  font-size: clamp(20px, 2.4vw, 27px);
+  color: #211D1A;
+  transition: color 0.2s ease;
+}
+
+.sign-toggle {
+  font-size: 16px;
+  color: #8B8274;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.sign-card:hover .sign-name {
+  color: #8E2530;
+}
+
+.sign-card:hover .sign-toggle {
+  color: #8E2530;
+}
+
+.sign-card[open] .sign-toggle {
+  transform: rotate(45deg);
+}
+
+.sign-meta {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8B8274;
+}
+
+.sign-text {
+  max-width: 46ch;
+  margin: 14px 0 4px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #5D5548;
+}
+
+/* Tránsitos: clima semanal + gancho hacia la carta natal */
+
+.transitos-dateline {
+  margin: clamp(18px, 3vh, 28px) 0 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8E2530;
+}
+
+.transitos-body {
+  max-width: 62ch;
+  margin: clamp(20px, 3vh, 30px) 0 0;
+  font-size: clamp(14px, 1.2vw, 16px);
+  line-height: 1.8;
+  color: #3A342C;
+}
+
+.transitos-hook {
+  max-width: 52ch;
+  margin: clamp(16px, 2.4vh, 22px) 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #5D5548;
+}
+
+.transitos-section .btn {
+  margin-top: clamp(24px, 4vh, 36px);
+}
+
 /* ---- Calculadora de carta: modal ---- */
 
 .modal-overlay {
@@ -228,6 +428,10 @@ a:hover {
   justify-content: center;
   padding: 24px;
   background: rgba(33, 29, 26, 0.55);
+}
+
+.modal-overlay[hidden] {
+  display: none;
 }
 
 .modal {
