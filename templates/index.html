@@ -29,6 +29,7 @@
         <a href="#carta">Carta</a>
         <a href="#signos">Signos</a>
         <a href="#transitos">Tránsitos</a>
+        <a href="#faq">FAQ</a>
       </nav>
     </header>
 
@@ -77,10 +78,16 @@
       </form>
 
       <div class="calc-result" id="calc-result" hidden>
-        <div class="modal-eyebrow">Tu informe</div>
+        <div class="modal-eyebrow">Extracto óptico</div>
         <p class="calc-result-subject" id="calc-result-subject"></p>
-        <div class="calc-result-text" id="calc-result-text"></div>
-        <a href="#" class="btn btn-secondary calc-download" id="calc-download" target="_blank" rel="noopener">Descargar PDF</a>
+        <p class="calc-teaser-phrase" id="calc-teaser-phrase"></p>
+
+        <div class="calc-upsell">
+          <p class="calc-upsell-copy">Esto es una lectura parcial, gratuita. El informe completo desarrolla los doce planetas, las casas y los aspectos de tu carta en un PDF descargable.</p>
+          <p class="calc-price-line">Informe completo: <span id="calc-price"></span></p>
+          <button type="button" class="btn btn-primary calc-buy" id="calc-buy">Comprar informe completo</button>
+          <p class="calc-buy-status" id="calc-buy-status" role="status" aria-live="polite" hidden></p>
+        </div>
       </div>
     </div>
   </div>
@@ -179,6 +186,38 @@
     <p class="transitos-body">El Sol cierra su tránsito por Virgo esta semana: un clima colectivo inclinado al detalle, la corrección de procesos y la salud de los sistemas que sostenemos — el cuerpo, el trabajo, la rutina. No es la temporada de las decisiones grandes; es la de ajustar lo que ya está en marcha antes de que el equinoccio empuje todo hacia Libra y la balanza de lo relacional.</p>
     <p class="transitos-hook">Esta lectura es de clima general. Dónde cae exactamente — qué casa, qué aspecto activa — depende de tu configuración natal.</p>
     <button type="button" class="btn btn-primary js-open-calculator">Ver mi carta natal</button>
+  </div>
+</section>
+
+<section id="faq" class="section faq-section">
+  <div class="section-inner">
+    <div class="eyebrow">Antes de empezar</div>
+    <h2 class="section-title">Preguntas frecuentes</h2>
+    <p class="section-lede">Sin tecnicismos. Lo que necesitás saber antes de calcular tu carta.</p>
+
+    <div class="faq-list">
+
+      <details class="faq-item">
+        <summary><span class="faq-question">¿Qué es exactamente una "lectura óptica"?</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <p class="faq-answer">Es la forma en que describimos tu carta natal: no como un pronóstico, sino como una configuración de luz — posición, temperatura y dirección — registrada en el momento y el lugar exactos en que naciste. El informe traduce esa configuración en un lenguaje analítico, no en predicciones.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary><span class="faq-question">¿Por qué es tan importante la hora exacta de nacimiento?</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <p class="faq-answer">La hora determina tu Ascendente y las doce casas de tu carta, que cambian cada pocos minutos. Sin hora exacta podemos calcular tus planetas, pero no dónde caen dentro de tu carta — es la diferencia entre saber qué luz tenés y saber hacia dónde apunta.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary><span class="faq-question">¿Cómo recibo el informe completo?</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <p class="faq-answer">Después de confirmar la compra, generamos un PDF a partir de tu carta y queda disponible para descargar directamente desde el sitio. No se envía por correo ni requiere una cuenta.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary><span class="faq-question">¿Qué pasa con mis datos de nacimiento?</span><span class="sign-toggle" aria-hidden="true">+</span></summary>
+        <p class="faq-answer">Tu fecha, hora y lugar de nacimiento se usan únicamente para calcular tu carta y generar tu informe. No los compartimos con terceros ni los usamos para nada fuera de esa lectura.</p>
+      </details>
+
+    </div>
   </div>
 </section>
 

@@ -27,6 +27,7 @@ from report_engine import (
     MissingAPIKeyError,
     generate_report,
 )
+from teaser_copy import build_teaser
 
 app = FastAPI(title="Sidérea")
 
@@ -43,6 +44,11 @@ _FIELD_LABELS = {
     "time": "la hora exacta",
     "location": "el lugar de nacimiento",
 }
+
+# Precio de referencia del informe completo. Vive acá (no hardcodeado en el
+# payload de Mercado Pago) para que el día que haya un solo lugar que
+# cambiar sea este.
+FULL_REPORT_PRICE_ARS = 9900
 
 
 class ChartRequest(BaseModel):
@@ -70,6 +76,27 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=422, content={"detail": detail})
 
 
+def _raise_for_natal_error(exc: Exception) -> None:
+    """Mapea las excepciones de natal_engine a una respuesta HTTP clara."""
+    if isinstance(
+        exc,
+        (
+            LocationNotFoundError,
+            MissingBirthTimeError,
+            InvalidHouseSystemError,
+            InvalidDateTimeError,
+        ),
+    ):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if isinstance(exc, (GeocodingTimeoutError, EphemerisCalculationError)):
+        raise HTTPException(
+            status_code=502, detail=f"No pudimos calcular tu carta: {exc}"
+        ) from exc
+    raise HTTPException(
+        status_code=500, detail="Ocurrió un error inesperado procesando tu carta."
+    ) from exc
+
+
 @app.get("/")
 async def read_index(request: Request):
     return templates.TemplateResponse(request, "index.html")
@@ -77,6 +104,42 @@ async def read_index(request: Request):
 
 @app.post("/api/calculate")
 async def calculate(payload: ChartRequest):
+    """Vista previa gratuita: solo natal_engine (rápido, sin costo de LLM).
+
+    Devuelve un "extracto óptico" — Sol, Ascendente y una frase fija de
+    arquitectura de aura — como destello de valor antes de ofrecer el
+    informe completo pago. No llama a report_engine ni a pdf_engine.
+    """
+    date_str = payload.date.isoformat()
+    time_str = payload.time.strftime("%H:%M")
+
+    try:
+        chart = await run_in_threadpool(
+            generate_natal_chart,
+            name="Consultante",
+            date_str=date_str,
+            time_str=time_str,
+            place_text=payload.location,
+        )
+    except Exception as exc:
+        _raise_for_natal_error(exc)
+
+    return {
+        "subject": chart["subject"],
+        "teaser": build_teaser(chart),
+        "full_report_price_ars": FULL_REPORT_PRICE_ARS,
+    }
+
+
+@app.post("/api/generate-report")
+async def generate_report_endpoint(payload: ChartRequest):
+    """Informe completo (LLM + PDF): reservado para después del pago.
+
+    Todavía no está gateado por una confirmación de pago real — eso llega
+    con el webhook de Mercado Pago (ver /api/create-preference) — pero
+    vive en su propio endpoint, separado de la vista previa gratuita, para
+    que ese enganche sea un solo punto de cambio cuando se implemente.
+    """
     date_str = payload.date.isoformat()
     time_str = payload.time.strftime("%H:%M")
 
@@ -139,3 +202,53 @@ async def download_report(report_id: str):
     return FileResponse(
         pdf_path, media_type="application/pdf", filename="carta-natal-siderea.pdf"
     )
+
+
+@app.post("/api/create-preference")
+async def create_preference(payload: ChartRequest):
+    """Stub del inicio de checkout de Mercado Pago.
+
+    Todavía no crea una preferencia real. Cuando se conecte el SDK, esto
+    pasaría a ser algo como:
+
+        import mercadopago
+        sdk = mercadopago.SDK(os.environ["MERCADOPAGO_ACCESS_TOKEN"])
+        preference_data = {
+            "items": [{
+                "title": "Informe completo Sidérea",
+                "quantity": 1,
+                "currency_id": "ARS",
+                "unit_price": FULL_REPORT_PRICE_ARS,
+            }],
+            "back_urls": {
+                "success": f"{BASE_URL}/pago/exito",
+                "failure": f"{BASE_URL}/pago/error",
+                "pending": f"{BASE_URL}/pago/pendiente",
+            },
+            "auto_return": "approved",
+            "notification_url": f"{BASE_URL}/api/payments/webhook",
+            # Datos de la carta para poder generar el informe una vez
+            # confirmado el pago, sin pedírselos de nuevo al usuario.
+            "metadata": {
+                "date": payload.date.isoformat(),
+                "time": payload.time.strftime("%H:%M"),
+                "location": payload.location,
+            },
+        }
+        preference = sdk.preference().create(preference_data)["response"]
+        return {"preference_id": preference["id"], "init_point": preference["init_point"]}
+
+    El webhook de confirmación de pago (POST /api/payments/webhook, a
+    implementar) sería el que dispare /api/generate-report para el
+    consultante correspondiente.
+    """
+    return {
+        "status": "pending_integration",
+        "preference_id": None,
+        "init_point": None,
+        "price_ars": FULL_REPORT_PRICE_ARS,
+        "message": (
+            "La pasarela de pago está en preparación. "
+            "Pronto vas a poder completar tu compra acá."
+        ),
+    }

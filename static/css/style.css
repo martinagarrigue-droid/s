@@ -417,6 +417,59 @@ a:hover {
   margin-top: clamp(24px, 4vh, 36px);
 }
 
+/* FAQ: misma disposición de disclosure que Signos, en lista vertical */
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 720px;
+  margin-top: clamp(40px, 6vh, 64px);
+}
+
+.faq-item {
+  border-top: 1px solid rgba(42, 38, 34, 0.16);
+  padding: 20px 0;
+}
+
+.faq-item summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-question {
+  font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
+  font-weight: 400;
+  font-size: clamp(17px, 2vw, 21px);
+  color: #211D1A;
+  transition: color 0.2s ease;
+}
+
+.faq-item:hover .faq-question,
+.faq-item:hover .sign-toggle {
+  color: #8E2530;
+}
+
+.faq-item[open] .sign-toggle {
+  transform: rotate(45deg);
+}
+
+.faq-answer {
+  max-width: 58ch;
+  margin: 14px 0 4px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #5D5548;
+}
+
 /* ---- Calculadora de carta: modal ---- */
 
 .modal-overlay {
@@ -491,6 +544,10 @@ a:hover {
   gap: 18px;
 }
 
+.calc-form[hidden] {
+  display: none;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -553,24 +610,55 @@ a:hover {
 }
 
 .calc-result-subject {
-  margin: 0 0 16px;
+  margin: 0 0 4px;
   font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
   font-size: clamp(20px, 3vw, 26px);
   color: #211D1A;
 }
 
-.calc-result-text {
-  max-height: 40vh;
-  overflow-y: auto;
+.calc-teaser-phrase {
+  margin: 0 0 24px;
   font-size: 13px;
   line-height: 1.75;
   color: #5D5548;
-  white-space: pre-wrap;
-  padding-right: 4px;
-  margin-bottom: 20px;
+  font-style: italic;
 }
 
-.calc-download {
+.calc-upsell {
+  border-top: 1px solid rgba(42, 38, 34, 0.16);
+  padding-top: 22px;
+}
+
+.calc-upsell-copy {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6E6558;
+}
+
+.calc-price-line {
+  margin: 0 0 14px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #211D1A;
+}
+
+.calc-buy {
   width: 100%;
   justify-content: center;
+}
+
+.calc-buy:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.calc-buy-status {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  color: #6E6558;
+  text-align: center;
 }

@@ -10,8 +10,21 @@
   var errorEl = document.getElementById("calc-error");
   var resultEl = document.getElementById("calc-result");
   var resultSubjectEl = document.getElementById("calc-result-subject");
-  var resultTextEl = document.getElementById("calc-result-text");
-  var downloadLink = document.getElementById("calc-download");
+  var teaserPhraseEl = document.getElementById("calc-teaser-phrase");
+  var buyBtn = document.getElementById("calc-buy");
+  var priceEl = document.getElementById("calc-price");
+  var buyStatusEl = document.getElementById("calc-buy-status");
+
+  var lastPayload = null;
+
+  function formatPriceArs(amount) {
+    if (typeof amount !== "number") return "";
+    try {
+      return amount.toLocaleString("es-AR") + " ARS";
+    } catch (err) {
+      return amount + " ARS";
+    }
+  }
 
   function openModal() {
     overlay.hidden = false;
@@ -23,7 +36,16 @@
     document.body.style.overflow = "";
   }
 
+  function resetBuyState() {
+    buyBtn.disabled = false;
+    buyBtn.hidden = false;
+    buyBtn.textContent = "Comprar informe completo";
+    buyStatusEl.hidden = true;
+    buyStatusEl.textContent = "";
+  }
+
   function resetView() {
+    lastPayload = null;
     form.hidden = false;
     resultEl.hidden = true;
     errorEl.hidden = true;
@@ -32,6 +54,7 @@
     statusEl.textContent = "";
     submitBtn.disabled = false;
     submitBtn.textContent = "Calcular mi carta";
+    resetBuyState();
   }
 
   openBtns.forEach(function (btn) {
@@ -88,20 +111,19 @@
         }
 
         var data = result.data || {};
+        var teaser = data.teaser || {};
+
+        lastPayload = payload;
+
         form.hidden = true;
         statusEl.hidden = true;
         resultEl.hidden = false;
-        resultSubjectEl.textContent =
-          (data.subject && data.subject.place && data.subject.place.resolved_display_name) ||
-          payload.location;
-        resultTextEl.textContent = data.report_text || "";
+        resetBuyState();
 
-        if (data.pdf_url) {
-          downloadLink.href = data.pdf_url;
-          downloadLink.hidden = false;
-        } else {
-          downloadLink.hidden = true;
-        }
+        resultSubjectEl.textContent =
+          "Sol en " + (teaser.sun_sign || "—") + " · Ascendente en " + (teaser.ascendant_sign || "—");
+        teaserPhraseEl.textContent = teaser.phrase || "";
+        priceEl.textContent = formatPriceArs(data.full_report_price_ars);
       })
       .catch(function (err) {
         statusEl.hidden = true;
@@ -109,6 +131,51 @@
         errorEl.textContent = err.message || "No pudimos conectar con el servidor. Probá de nuevo.";
         submitBtn.disabled = false;
         submitBtn.textContent = "Calcular mi carta";
+      });
+  });
+
+  buyBtn.addEventListener("click", function () {
+    if (!lastPayload) return;
+
+    buyBtn.disabled = true;
+    buyBtn.textContent = "Procesando…";
+    buyStatusEl.hidden = true;
+
+    fetch("/api/create-preference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lastPayload),
+    })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          return { ok: response.ok, data: data };
+        }).catch(function () {
+          return { ok: response.ok, data: null };
+        });
+      })
+      .then(function (result) {
+        var data = result.data || {};
+
+        if (result.ok && data.init_point) {
+          window.location.href = data.init_point;
+          return;
+        }
+
+        var message =
+          (data && typeof data.message === "string" && data.message) ||
+          (data && typeof data.detail === "string" && data.detail) ||
+          "No pudimos iniciar el pago. Probá de nuevo en un rato.";
+
+        buyStatusEl.hidden = false;
+        buyStatusEl.textContent = message;
+        buyBtn.disabled = false;
+        buyBtn.textContent = "Comprar informe completo";
+      })
+      .catch(function () {
+        buyStatusEl.hidden = false;
+        buyStatusEl.textContent = "No pudimos conectar con el servidor. Probá de nuevo.";
+        buyBtn.disabled = false;
+        buyBtn.textContent = "Comprar informe completo";
       });
   });
 })();
