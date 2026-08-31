@@ -535,6 +535,7 @@ a:hover {
   font-weight: 400;
   font-size: clamp(24px, 4vw, 32px);
   line-height: 1.1;
+  text-wrap: balance;
   color: #211D1A;
 }
 
@@ -609,31 +610,64 @@ a:hover {
   cursor: progress;
 }
 
-.calc-result-subject {
-  margin: 0 0 4px;
+.calc-result {
+  animation: calc-reveal 0.4s ease both;
+}
+
+.calc-result[hidden] {
+  display: none;
+}
+
+@keyframes calc-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.calc-diagnosis-title {
+  margin: 0 0 14px;
   font-family: 'Bodoni Moda', Didot, 'Bodoni MT', serif;
-  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 400;
+  font-size: clamp(24px, 4vw, 30px);
+  line-height: 1.1;
+  text-wrap: balance;
   color: #211D1A;
 }
 
-.calc-teaser-phrase {
-  margin: 0 0 24px;
+.calc-readout {
+  margin: 0 0 22px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8B8274;
+}
+
+.calc-diagnosis-text {
+  margin: 0 0 16px;
   font-size: 13px;
   line-height: 1.75;
   color: #5D5548;
-  font-style: italic;
+  text-wrap: pretty;
+}
+
+.calc-hook {
+  margin: 4px 0 26px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(42, 38, 34, 0.16);
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8E2530;
+  text-wrap: pretty;
 }
 
 .calc-upsell {
   border-top: 1px solid rgba(42, 38, 34, 0.16);
   padding-top: 22px;
-}
-
-.calc-upsell-copy {
-  margin: 0 0 14px;
-  font-size: 12px;
-  line-height: 1.7;
-  color: #6E6558;
 }
 
 .calc-price-line {
