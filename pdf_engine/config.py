@@ -6,7 +6,8 @@ solo texto y datos, para no mezclar contenido con estilo.
 
 PAGE_SIZE = "A4"
 
-COVER_EYEBROW = "Informe de carta natal"
+COVER_WORDMARK = "SIDÉREA"
+COVER_SUBTITLE = "Lectura Óptica Integral"
 COVER_FOOTER_LABEL = "Documento confidencial · uso personal"
 
 MONTHS_ES = [

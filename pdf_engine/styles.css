@@ -1,5 +1,11 @@
-/* Estetica minimalista "alto estatus": tipografia sobria, paleta acotada,
-   mucho espacio en blanco. Sin logos, sin iconos, sin color decorativo. */
+/* Misma hoja de estilos de marca que sidérea.com: fondo crudo, Bodoni Moda
+   para títulos, IBM Plex Mono para cuerpo y datos técnicos. Sin logos, sin
+   iconos, sin color decorativo fuera de la paleta ya aprobada.
+
+   Las fuentes se piden vía @import (mismo host que usa el sitio) con una
+   pila de fallback nativa por si el entorno de render no tiene salida a
+   internet -- el documento sigue siendo válido, solo cambia el glifo. */
+@import url("https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=IBM+Plex+Mono:wght@400;500&display=swap");
 
 @page cover {
   size: A4;
@@ -14,12 +20,13 @@
 @page content {
   size: A4;
   margin: 3cm 2.4cm 3cm 2.4cm;
+  background: #F1EDE4;
 
   @bottom-center {
     content: counter(page);
-    font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+    font-family: "IBM Plex Mono", "Liberation Mono", ui-monospace, monospace;
     font-size: 9pt;
-    color: #9a9484;
+    color: #8B8274;
   }
 }
 
@@ -29,10 +36,11 @@
 
 body {
   margin: 0;
-  font-family: "Liberation Serif", Georgia, "Times New Roman", serif;
-  color: #1c1c1a;
-  font-size: 11pt;
-  line-height: 1.65;
+  background: #F1EDE4;
+  font-family: "IBM Plex Mono", "Liberation Mono", ui-monospace, monospace;
+  color: #2A2622;
+  font-size: 10.5pt;
+  line-height: 1.7;
 }
 
 /* --- Portada ------------------------------------------------------------ */
@@ -43,41 +51,58 @@ body {
   width: 21cm;
   height: 29.7cm;
   padding: 4cm 3cm;
-  background: #fbfaf7;
+  background: #F1EDE4;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
-.cover-eyebrow {
-  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
-  font-size: 10pt;
-  letter-spacing: 0.28em;
+.cover-wordmark {
+  font-family: "Bodoni Moda", Didot, "Bodoni MT", serif;
+  font-weight: 400;
+  font-size: 15pt;
+  letter-spacing: 0.42em;
   text-transform: uppercase;
-  color: #8a8577;
+  color: #2A2622;
+}
+
+.cover-wordmark-accent {
+  font-weight: 500;
+  color: #9AA0A6;
+}
+
+.cover-subtitle {
+  margin-top: 0.5cm;
+  font-family: "IBM Plex Mono", "Liberation Mono", ui-monospace, monospace;
+  font-size: 9.5pt;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8E2530;
 }
 
 .cover-main {
-  margin-top: 6cm;
+  margin-top: 5.5cm;
 }
 
 .cover-name {
+  font-family: "Bodoni Moda", Didot, "Bodoni MT", serif;
   font-size: 34pt;
   font-weight: 400;
   letter-spacing: 0.01em;
   margin: 0 0 0.6cm 0;
+  color: #211D1A;
 }
 
 .cover-rule {
   width: 3.2cm;
   height: 1px;
-  background: #c9c3b3;
+  background: #C9C3B3;
   margin: 0.8cm 0;
 }
 
 .cover-data {
-  font-size: 10.5pt;
-  color: #4a473f;
+  font-size: 10pt;
+  color: #5D5548;
   line-height: 2;
 }
 
@@ -88,18 +113,17 @@ body {
 .cover-data .label {
   display: inline-block;
   width: 3.6cm;
-  color: #9a9484;
-  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
+  color: #8B8274;
   font-size: 8.5pt;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .cover-footer {
-  font-family: "Liberation Sans", Helvetica, Arial, sans-serif;
   font-size: 8pt;
-  color: #b2ac9c;
-  letter-spacing: 0.04em;
+  color: #8B8274;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* --- Cuerpo del informe --------------------------------------------------- */
@@ -117,14 +141,14 @@ body {
 }
 
 .report-section h2 {
-  font-size: 15pt;
+  font-family: "Bodoni Moda", Didot, "Bodoni MT", serif;
+  font-size: 19pt;
   font-weight: 400;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #1c1c1a;
+  letter-spacing: 0.01em;
+  color: #211D1A;
   margin: 0 0 0.9cm 0;
   padding-bottom: 0.35cm;
-  border-bottom: 1px solid #c9c3b3;
+  border-bottom: 1px solid #C9C3B3;
 }
 
 .report-section p {
@@ -133,6 +157,7 @@ body {
   hyphens: auto;
   orphans: 3;
   widows: 3;
+  color: #3A342C;
 }
 
 .report-section ul {
@@ -145,7 +170,8 @@ body {
 }
 
 .report-section strong {
-  font-weight: 700;
+  font-weight: 500;
+  color: #211D1A;
 }
 
 .report-section em {

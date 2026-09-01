@@ -8,7 +8,13 @@ import html
 import re
 from datetime import datetime
 
-from pdf_engine.config import COVER_EYEBROW, COVER_FIELD_LABELS, COVER_FOOTER_LABEL, MONTHS_ES
+from pdf_engine.config import (
+    COVER_FIELD_LABELS,
+    COVER_FOOTER_LABEL,
+    COVER_SUBTITLE,
+    COVER_WORDMARK,
+    MONTHS_ES,
+)
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 _ITALIC_RE = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
@@ -33,6 +39,15 @@ def _apply_inline_markdown(escaped_text: str) -> str:
 def _format_spanish_date(iso_datetime: str) -> str:
     dt = datetime.fromisoformat(iso_datetime)
     return f"{dt.day} de {MONTHS_ES[dt.month - 1]} de {dt.year}, {dt.strftime('%H:%M')} hs"
+
+
+def _wordmark_html(wordmark: str) -> str:
+    """Resalta la É del wordmark, igual que el tratamiento del sitio."""
+    accent_index = wordmark.find("É")
+    if accent_index == -1:
+        return _escape(wordmark)
+    before, after = wordmark[:accent_index], wordmark[accent_index + 1:]
+    return f'{_escape(before)}<span class="cover-wordmark-accent">É</span>{_escape(after)}'
 
 
 def _text_block_to_html(text: str) -> str:
@@ -60,7 +75,8 @@ def build_cover_html(chart: dict) -> str:
     house_system = chart["meta"]["engine"]["house_system"]
 
     return f"""<section class="cover">
-  <div class="cover-eyebrow">{_escape(COVER_EYEBROW)}</div>
+  <div class="cover-wordmark">{_wordmark_html(COVER_WORDMARK)}</div>
+  <div class="cover-subtitle">{_escape(COVER_SUBTITLE)}</div>
   <div class="cover-main">
     <div class="cover-name">{_escape(subject["name"])}</div>
     <div class="cover-rule"></div>
