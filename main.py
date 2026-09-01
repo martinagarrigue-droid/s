@@ -4,6 +4,8 @@ import uuid
 from datetime import date as date_type, time as time_type
 from pathlib import Path
 
+import mercadopago
+import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
@@ -48,8 +50,31 @@ _FIELD_LABELS = {
 
 # Precio de referencia del informe completo. Vive acá (no hardcodeado en el
 # payload de Mercado Pago) para que el día que haya un solo lugar que
-# cambiar sea este.
-FULL_REPORT_PRICE_ARS = 9900
+# cambiar sea este. Placeholder -- ajustar antes de lanzar.
+FULL_REPORT_PRICE_ARS = 15000
+FULL_REPORT_TITLE = "Sidérea - Lectura Óptica Integral"
+
+_mp_sdk: mercadopago.SDK | None = None
+
+
+def _get_mp_sdk() -> mercadopago.SDK:
+    """Construye el SDK de Mercado Pago de forma perezosa.
+
+    Perezosa a propósito: si se instanciara a nivel de módulo, un servidor
+    sin MERCADOPAGO_ACCESS_TOKEN configurada (dev local, tests) no podría ni
+    arrancar. Así, el resto de la app funciona igual y el error queda
+    acotado a este endpoint.
+    """
+    global _mp_sdk
+    if _mp_sdk is None:
+        access_token = os.environ.get("MERCADOPAGO_ACCESS_TOKEN")
+        if not access_token:
+            raise HTTPException(
+                status_code=500,
+                detail="La pasarela de pago no está configurada (falta MERCADOPAGO_ACCESS_TOKEN).",
+            )
+        _mp_sdk = mercadopago.SDK(access_token)
+    return _mp_sdk
 
 
 class ChartRequest(BaseModel):
@@ -205,99 +230,69 @@ async def download_report(report_id: str):
     )
 
 
-@app.get("/api/test-pdf")
-async def test_pdf_pipeline(token: str | None = None):
-    """TEMPORAL -- prueba de fuego manual del pipeline completo con datos
-    fijos, usando la ANTHROPIC_API_KEY real de este servidor.
+@app.get("/success")
+async def payment_success(request: Request):
+    """Placeholder de retorno post-pago.
 
-    Corre natal_engine -> report_engine -> pdf_engine para un nacimiento de
-    prueba (23 ago 2026, 15:33, Buenos Aires) y devuelve el PDF resultante
-    para descarga directa. Cada request dispara ~8 llamadas reales a Claude
-    (una por sección del informe) y consume créditos.
-
-    Protegido por un token compartido: sin la env var TEST_PDF_TOKEN
-    seteada en el servidor, este endpoint responde 404 (como si no
-    existiera). Con ella seteada, hay que pasar ?token=<mismo valor>. Sin
-    esto, cualquiera que encuentre la URL podría gastar créditos de la
-    cuenta repetidamente sin límite.
-
-    Sacá esta ruta del código (o al menos desactivá TEST_PDF_TOKEN) una vez
-    que termines de validar el informe -- es de un solo uso, no un
-    endpoint de producto.
+    Todavía no dispara /api/generate-report -- eso se conecta acá en el
+    próximo paso, junto con el webhook de confirmación de Mercado Pago.
     """
-    expected_token = os.environ.get("TEST_PDF_TOKEN")
-    if not expected_token or token != expected_token:
-        raise HTTPException(status_code=404)
-
-    try:
-        chart = await run_in_threadpool(
-            generate_natal_chart,
-            name="Consultante de Prueba",
-            date_str="2026-08-23",
-            time_str="15:33",
-            place_text="Buenos Aires, Argentina",
-        )
-        report = await run_in_threadpool(generate_report, chart)
-
-        pdf_path = REPORTS_DIR / "test-pdf.pdf"
-        await run_in_threadpool(generate_pdf, chart, report, str(pdf_path))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Falló la generación de prueba: {exc}"
-        ) from exc
-
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename="reporte_prueba.pdf",
-    )
+    return templates.TemplateResponse(request, "success.html")
 
 
 @app.post("/api/create-preference")
-async def create_preference(payload: ChartRequest):
-    """Stub del inicio de checkout de Mercado Pago.
+async def create_preference(payload: ChartRequest, request: Request):
+    """Crea una preferencia real de Checkout Pro de Mercado Pago.
 
-    Todavía no crea una preferencia real. Cuando se conecte el SDK, esto
-    pasaría a ser algo como:
+    Los datos de nacimiento van en `metadata` para no perderlos después del
+    pago -- el webhook (a implementar) los va a leer de ahí para disparar
+    /api/generate-report sin pedírselos de nuevo al usuario.
+    """
+    sdk = _get_mp_sdk()
+    base_url = str(request.base_url).rstrip("/")
 
-        import mercadopago
-        sdk = mercadopago.SDK(os.environ["MERCADOPAGO_ACCESS_TOKEN"])
-        preference_data = {
-            "items": [{
-                "title": "Informe completo Sidérea",
+    preference_data = {
+        "items": [
+            {
+                "title": FULL_REPORT_TITLE,
                 "quantity": 1,
                 "currency_id": "ARS",
                 "unit_price": FULL_REPORT_PRICE_ARS,
-            }],
-            "back_urls": {
-                "success": f"{BASE_URL}/pago/exito",
-                "failure": f"{BASE_URL}/pago/error",
-                "pending": f"{BASE_URL}/pago/pendiente",
-            },
-            "auto_return": "approved",
-            "notification_url": f"{BASE_URL}/api/payments/webhook",
-            # Datos de la carta para poder generar el informe una vez
-            # confirmado el pago, sin pedírselos de nuevo al usuario.
-            "metadata": {
-                "date": payload.date.isoformat(),
-                "time": payload.time.strftime("%H:%M"),
-                "location": payload.location,
-            },
-        }
-        preference = sdk.preference().create(preference_data)["response"]
-        return {"preference_id": preference["id"], "init_point": preference["init_point"]}
+            }
+        ],
+        "back_urls": {
+            "success": f"{base_url}/success",
+            "failure": f"{base_url}/failure",
+            "pending": f"{base_url}/pending",
+        },
+        "auto_return": "approved",
+        # Datos de la carta para poder generar el informe una vez
+        # confirmado el pago, sin pedírselos de nuevo al usuario.
+        "metadata": {
+            "date": payload.date.isoformat(),
+            "time": payload.time.strftime("%H:%M"),
+            "location": payload.location,
+        },
+    }
 
-    El webhook de confirmación de pago (POST /api/payments/webhook, a
-    implementar) sería el que dispare /api/generate-report para el
-    consultante correspondiente.
-    """
+    try:
+        result = await run_in_threadpool(sdk.preference().create, preference_data)
+        result.raise_for_status()
+    except mercadopago.MercadoPagoError as exc:
+        raise HTTPException(
+            status_code=502, detail=f"No pudimos iniciar el pago: {exc}"
+        ) from exc
+    except requests.exceptions.RequestException as exc:
+        # Esta versión del SDK de mercadopago no envuelve fallos de red
+        # (timeouts, DNS, proxy) en su propia jerarquía de excepciones --
+        # llegan como requests.exceptions.* crudas. Sin este catch, un corte
+        # de red devuelve un 500 sin cuerpo en vez de un error prolijo.
+        raise HTTPException(
+            status_code=502, detail="No pudimos conectar con Mercado Pago. Probá de nuevo en un rato."
+        ) from exc
+
+    preference = result["response"]
     return {
-        "status": "pending_integration",
-        "preference_id": None,
-        "init_point": None,
-        "price_ars": FULL_REPORT_PRICE_ARS,
-        "message": (
-            "La pasarela de pago está en preparación. "
-            "Pronto vas a poder completar tu compra acá."
-        ),
+        "preference_id": preference.get("id"),
+        "init_point": preference.get("init_point") or preference.get("sandbox_init_point"),
     }

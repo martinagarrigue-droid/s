@@ -178,7 +178,7 @@
       if (!lastPayload) return;
 
       setDisabled(buyBtn, true);
-      setText(buyBtn, "Procesando…");
+      setText(buyBtn, "Conectando pasarela...");
       setHidden(buyStatusEl, true);
 
       fetch("/api/create-preference", {
