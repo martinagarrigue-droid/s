@@ -230,14 +230,111 @@ async def download_report(report_id: str):
     )
 
 
-@app.get("/success")
-async def payment_success(request: Request):
-    """Placeholder de retorno post-pago.
+def _payment_error_page(request: Request, message: str, status_code: int = 400):
+    return templates.TemplateResponse(
+        request, "payment_error.html", {"message": message}, status_code=status_code
+    )
 
-    Todavía no dispara /api/generate-report -- eso se conecta acá en el
-    próximo paso, junto con el webhook de confirmación de Mercado Pago.
+
+@app.get("/success")
+async def payment_success(
+    request: Request,
+    preference_id: str | None = None,
+    payment_id: str | None = None,
+):
+    """Entrega automática del informe tras un pago aprobado.
+
+    Mercado Pago redirige acá con `preference_id` y `payment_id` en la
+    query string después del checkout -- pero esos query params son
+    trivialmente falsificables por cualquiera que visite la URL a mano.
+    Nunca confiamos en ellos solos: `payment_id` se usa para consultar el
+    pago real contra la API de Mercado Pago (con nuestro access token) y
+    solo generamos el informe si esa consulta confirma `status == "approved"`.
+
+    Los datos de nacimiento viajan en el `metadata` que le pusimos a la
+    preferencia al crearla (ver /api/create-preference) -- Mercado Pago los
+    copia al pago resultante, así que no hace falta pedírselos de nuevo al
+    usuario ni guardar estado propio entre la preferencia y el pago.
+
+    `preference_id` se acepta porque Mercado Pago lo manda, pero no hace
+    falta para la lógica: `payment_id` (verificado contra la API) ya es
+    suficiente para reconstruir todo.
     """
-    return templates.TemplateResponse(request, "success.html")
+    if not payment_id:
+        return _payment_error_page(
+            request,
+            "No encontramos información de tu pago. Si ya pagaste, "
+            "escribinos con tu número de operación y lo resolvemos a mano.",
+        )
+
+    try:
+        sdk = _get_mp_sdk()
+    except HTTPException as exc:
+        return _payment_error_page(request, str(exc.detail), status_code=exc.status_code)
+
+    try:
+        payment_result = await run_in_threadpool(sdk.payment().get, payment_id)
+        payment_result.raise_for_status()
+    except mercadopago.MercadoPagoError as exc:
+        return _payment_error_page(
+            request, f"No pudimos verificar tu pago con Mercado Pago: {exc}", status_code=502
+        )
+    except requests.exceptions.RequestException:
+        return _payment_error_page(
+            request,
+            "No pudimos conectar con Mercado Pago para verificar tu pago. Probá de nuevo en un rato.",
+            status_code=502,
+        )
+
+    payment = payment_result["response"]
+
+    if payment.get("status") != "approved":
+        return _payment_error_page(
+            request,
+            "Tu pago todavía no está aprobado. Si acabás de pagar, esperá "
+            "unos segundos y volvé a abrir el enlace que te mandó Mercado Pago.",
+            status_code=402,
+        )
+
+    metadata = payment.get("metadata") or {}
+    date_str = metadata.get("date")
+    time_str = metadata.get("time")
+    location = metadata.get("location")
+
+    if not (date_str and time_str and location):
+        return _payment_error_page(
+            request,
+            "Tu pago está aprobado, pero no encontramos los datos de tu "
+            "carta asociados. Escribinos con tu número de pago y te lo "
+            "mandamos a mano.",
+            status_code=422,
+        )
+
+    try:
+        chart = await run_in_threadpool(
+            generate_natal_chart,
+            name="Consultante",
+            date_str=date_str,
+            time_str=time_str,
+            place_text=location,
+        )
+        report = await run_in_threadpool(generate_report, chart)
+
+        pdf_path = REPORTS_DIR / f"{uuid.uuid4().hex}.pdf"
+        await run_in_threadpool(generate_pdf, chart, report, str(pdf_path))
+    except Exception:
+        return _payment_error_page(
+            request,
+            "Tu pago está aprobado, pero hubo un error generando tu informe. "
+            "Escribinos con tu número de pago y te lo mandamos a mano.",
+            status_code=500,
+        )
+
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename="Siderea_Lectura_Optica.pdf",
+    )
 
 
 @app.post("/api/create-preference")
