@@ -126,11 +126,13 @@
       var dateField = form.elements.namedItem("date");
       var timeField = form.elements.namedItem("time");
       var locationField = form.elements.namedItem("location");
+      var emailField = form.elements.namedItem("email");
 
       var payload = {
         date: dateField ? dateField.value : "",
         time: timeField ? timeField.value : "",
         location: locationField ? locationField.value.trim() : "",
+        email: emailField ? emailField.value.trim() : "",
       };
 
       fetch("/api/calculate", {

@@ -10,3 +10,4 @@ fastapi
 uvicorn
 jinja2
 mercadopago==3.5.0
+email-validator

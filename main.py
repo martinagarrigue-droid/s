@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import uuid
@@ -6,14 +7,15 @@ from pathlib import Path
 
 import mercadopago
 import requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
+from email_engine import EmailEngineError, send_report_email
 from natal_engine import (
     EphemerisCalculationError,
     GeocodingTimeoutError,
@@ -32,6 +34,8 @@ from report_engine import (
 )
 from teaser_copy import build_teaser
 
+logger = logging.getLogger("siderea.webhook")
+
 app = FastAPI(title="Sidérea")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -46,12 +50,13 @@ _FIELD_LABELS = {
     "date": "la fecha de nacimiento",
     "time": "la hora exacta",
     "location": "el lugar de nacimiento",
+    "email": "el email",
 }
 
 # Precio de referencia del informe completo. Vive acá (no hardcodeado en el
 # payload de Mercado Pago) para que el día que haya un solo lugar que
-# cambiar sea este. Placeholder -- ajustar antes de lanzar.
-FULL_REPORT_PRICE_ARS = 15000
+# cambiar sea este. Valor de prueba -- ajustar antes de lanzar.
+FULL_REPORT_PRICE_ARS = 1000.00
 FULL_REPORT_TITLE = "Sidérea - Lectura Óptica Integral"
 
 _mp_sdk: mercadopago.SDK | None = None
@@ -81,6 +86,7 @@ class ChartRequest(BaseModel):
     date: date_type
     time: time_type
     location: str
+    email: EmailStr
 
     @field_validator("location")
     @classmethod
@@ -230,120 +236,133 @@ async def download_report(report_id: str):
     )
 
 
-def _payment_error_page(request: Request, message: str, status_code: int = 400):
-    return templates.TemplateResponse(
-        request, "payment_error.html", {"message": message}, status_code=status_code
-    )
-
-
 @app.get("/success")
-async def payment_success(
-    request: Request,
-    preference_id: str | None = None,
-    payment_id: str | None = None,
-):
-    """Entrega automática del informe tras un pago aprobado.
+async def payment_success(request: Request):
+    """Página de confirmación post-pago -- pura UX, sin lógica.
 
-    Mercado Pago redirige acá con `preference_id` y `payment_id` en la
-    query string después del checkout -- pero esos query params son
-    trivialmente falsificables por cualquiera que visite la URL a mano.
-    Nunca confiamos en ellos solos: `payment_id` se usa para consultar el
-    pago real contra la API de Mercado Pago (con nuestro access token) y
-    solo generamos el informe si esa consulta confirma `status == "approved"`.
-
-    Los datos de nacimiento viajan en el `metadata` que le pusimos a la
-    preferencia al crearla (ver /api/create-preference) -- Mercado Pago los
-    copia al pago resultante, así que no hace falta pedírselos de nuevo al
-    usuario ni guardar estado propio entre la preferencia y el pago.
-
-    `preference_id` se acepta porque Mercado Pago lo manda, pero no hace
-    falta para la lógica: `payment_id` (verificado contra la API) ya es
-    suficiente para reconstruir todo.
+    La entrega ya no depende de que el usuario vuelva a este navegador ni
+    de que espere a que termine de cargar: /api/webhook confirma el pago y
+    dispara la generación + el envío del informe por mail de forma
+    asincrónica y server-to-server, sin importar qué haga esta pestaña.
     """
-    if not payment_id:
-        return _payment_error_page(
-            request,
-            "No encontramos información de tu pago. Si ya pagaste, "
-            "escribinos con tu número de operación y lo resolvemos a mano.",
-        )
+    return templates.TemplateResponse(request, "success.html")
+
+
+def _fulfill_payment(payment_id: str) -> None:
+    """Verifica un pago, genera el informe y lo entrega por mail.
+
+    Corre en un hilo de BackgroundTasks después de que /api/webhook ya le
+    respondió 200 OK a Mercado Pago -- por eso es sincrónica de punta a
+    punta (sin async/await): no hay un loop de eventos esperándola, y
+    Starlette ya la ejecuta fuera del hilo principal.
+
+    Idempotente a propósito: si Mercado Pago reintenta la notificación (lo
+    hace agresivamente) o alguien reenvía el mismo payment_id, un archivo
+    marcador evita regenerar el informe y remandar el mail -- cada
+    regeneración dispara ~8 llamadas reales a Claude, así que un duplicado
+    sin controlar sale caro.
+    """
+    marker_path = REPORTS_DIR / f"webhook-{payment_id}.done"
+    if marker_path.exists():
+        logger.info("payment_id=%s ya fue entregado antes; se ignora la notificación duplicada.", payment_id)
+        return
 
     try:
         sdk = _get_mp_sdk()
-    except HTTPException as exc:
-        return _payment_error_page(request, str(exc.detail), status_code=exc.status_code)
 
-    try:
-        payment_result = await run_in_threadpool(sdk.payment().get, payment_id)
+        payment_result = sdk.payment().get(payment_id)
         payment_result.raise_for_status()
-    except mercadopago.MercadoPagoError as exc:
-        return _payment_error_page(
-            request, f"No pudimos verificar tu pago con Mercado Pago: {exc}", status_code=502
-        )
-    except requests.exceptions.RequestException:
-        return _payment_error_page(
-            request,
-            "No pudimos conectar con Mercado Pago para verificar tu pago. Probá de nuevo en un rato.",
-            status_code=502,
-        )
+        payment = payment_result["response"]
 
-    payment = payment_result["response"]
+        if payment.get("status") != "approved":
+            logger.info("payment_id=%s todavía no está aprobado (status=%s).", payment_id, payment.get("status"))
+            return
 
-    if payment.get("status") != "approved":
-        return _payment_error_page(
-            request,
-            "Tu pago todavía no está aprobado. Si acabás de pagar, esperá "
-            "unos segundos y volvé a abrir el enlace que te mandó Mercado Pago.",
-            status_code=402,
+        metadata = payment.get("metadata") or {}
+        date_str = metadata.get("date")
+        time_str = metadata.get("time")
+        location = metadata.get("location")
+        email = metadata.get("email")
+
+        if not (date_str and time_str and location and email):
+            logger.warning("payment_id=%s aprobado pero falta metadata: %r", payment_id, metadata)
+            return
+
+        chart = generate_natal_chart(
+            name="Consultante", date_str=date_str, time_str=time_str, place_text=location
         )
-
-    metadata = payment.get("metadata") or {}
-    date_str = metadata.get("date")
-    time_str = metadata.get("time")
-    location = metadata.get("location")
-
-    if not (date_str and time_str and location):
-        return _payment_error_page(
-            request,
-            "Tu pago está aprobado, pero no encontramos los datos de tu "
-            "carta asociados. Escribinos con tu número de pago y te lo "
-            "mandamos a mano.",
-            status_code=422,
-        )
-
-    try:
-        chart = await run_in_threadpool(
-            generate_natal_chart,
-            name="Consultante",
-            date_str=date_str,
-            time_str=time_str,
-            place_text=location,
-        )
-        report = await run_in_threadpool(generate_report, chart)
+        report = generate_report(chart)
 
         pdf_path = REPORTS_DIR / f"{uuid.uuid4().hex}.pdf"
-        await run_in_threadpool(generate_pdf, chart, report, str(pdf_path))
-    except Exception:
-        return _payment_error_page(
-            request,
-            "Tu pago está aprobado, pero hubo un error generando tu informe. "
-            "Escribinos con tu número de pago y te lo mandamos a mano.",
-            status_code=500,
-        )
+        generate_pdf(chart, report, str(pdf_path))
 
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename="Siderea_Lectura_Optica.pdf",
-    )
+        send_report_email(email, str(pdf_path))
+    except (mercadopago.MercadoPagoError, requests.exceptions.RequestException):
+        logger.exception("No se pudo verificar payment_id=%s contra Mercado Pago.", payment_id)
+        return
+    except EmailEngineError:
+        logger.exception("El informe de payment_id=%s se generó pero no se pudo enviar por mail.", payment_id)
+        return
+    except Exception:
+        logger.exception("Fallo inesperado procesando payment_id=%s en el webhook.", payment_id)
+        return
+
+    marker_path.touch()
+    logger.info("Informe entregado por mail a %s (payment_id=%s).", email, payment_id)
+
+
+@app.post("/api/webhook")
+async def mercadopago_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Notificaciones (IPN/Webhooks) de Mercado Pago.
+
+    Respondemos 200 OK enseguida, sin esperar a verificar nada -- Mercado
+    Pago reintenta agresivamente si la respuesta tarda o falla, y no
+    necesitamos que espere a que generemos el informe. El trabajo real
+    (verificar el pago, generar el PDF, mandar el mail) queda en
+    BackgroundTasks, después de que esta respuesta ya salió.
+
+    Acepta tanto el formato actual de webhooks (JSON body
+    {"type": "payment", "data": {"id": "..."}}) como el IPN legado
+    (query string ?topic=payment&id=...), porque Mercado Pago todavía
+    manda ambos según cómo esté configurada la integración.
+    """
+    payment_id = None
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+
+    if isinstance(body, dict) and body.get("type") == "payment":
+        payment_id = (body.get("data") or {}).get("id")
+
+    if not payment_id:
+        query = request.query_params
+        if query.get("topic") == "payment":
+            payment_id = query.get("id")
+        elif query.get("type") == "payment":
+            payment_id = query.get("data.id") or query.get("id")
+
+    if payment_id:
+        background_tasks.add_task(_fulfill_payment, str(payment_id))
+    else:
+        logger.info("Webhook recibido sin payment_id reconocible, se ignora: %r", body)
+
+    return {"status": "received"}
 
 
 @app.post("/api/create-preference")
 async def create_preference(payload: ChartRequest, request: Request):
     """Crea una preferencia real de Checkout Pro de Mercado Pago.
 
-    Los datos de nacimiento van en `metadata` para no perderlos después del
-    pago -- el webhook (a implementar) los va a leer de ahí para disparar
-    /api/generate-report sin pedírselos de nuevo al usuario.
+    Los datos de nacimiento y el email van en `metadata` para no perderlos
+    después del pago -- POST /api/webhook los lee de ahí (vía el pago
+    resultante) para generar el informe y mandarlo por mail sin pedírselos
+    de nuevo al usuario.
+
+    IMPORTANTE: la URL de este webhook (`{base_url}/api/webhook`) hay que
+    configurarla en el panel de Mercado Pago (Tu negocio → Webhooks) -- no
+    se manda acá como `notification_url` porque esa vía está deprecada.
     """
     sdk = _get_mp_sdk()
     base_url = str(request.base_url).rstrip("/")
@@ -363,12 +382,15 @@ async def create_preference(payload: ChartRequest, request: Request):
             "pending": f"{base_url}/pending",
         },
         "auto_return": "approved",
-        # Datos de la carta para poder generar el informe una vez
-        # confirmado el pago, sin pedírselos de nuevo al usuario.
+        # Datos de la carta y el email para poder generar el informe y
+        # mandarlo una vez confirmado el pago (ver /api/webhook), sin
+        # pedírselos de nuevo al usuario. Mercado Pago copia este metadata
+        # al pago resultante.
         "metadata": {
             "date": payload.date.isoformat(),
             "time": payload.time.strftime("%H:%M"),
             "location": payload.location,
+            "email": str(payload.email),
         },
     }
 
