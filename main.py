@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 from datetime import date as date_type, time as time_type
@@ -201,6 +202,54 @@ async def download_report(report_id: str):
         raise HTTPException(status_code=404, detail="Informe no encontrado.")
     return FileResponse(
         pdf_path, media_type="application/pdf", filename="carta-natal-siderea.pdf"
+    )
+
+
+@app.get("/api/test-pdf")
+async def test_pdf_pipeline(token: str | None = None):
+    """TEMPORAL -- prueba de fuego manual del pipeline completo con datos
+    fijos, usando la ANTHROPIC_API_KEY real de este servidor.
+
+    Corre natal_engine -> report_engine -> pdf_engine para un nacimiento de
+    prueba (23 ago 2026, 15:33, Buenos Aires) y devuelve el PDF resultante
+    para descarga directa. Cada request dispara ~8 llamadas reales a Claude
+    (una por sección del informe) y consume créditos.
+
+    Protegido por un token compartido: sin la env var TEST_PDF_TOKEN
+    seteada en el servidor, este endpoint responde 404 (como si no
+    existiera). Con ella seteada, hay que pasar ?token=<mismo valor>. Sin
+    esto, cualquiera que encuentre la URL podría gastar créditos de la
+    cuenta repetidamente sin límite.
+
+    Sacá esta ruta del código (o al menos desactivá TEST_PDF_TOKEN) una vez
+    que termines de validar el informe -- es de un solo uso, no un
+    endpoint de producto.
+    """
+    expected_token = os.environ.get("TEST_PDF_TOKEN")
+    if not expected_token or token != expected_token:
+        raise HTTPException(status_code=404)
+
+    try:
+        chart = await run_in_threadpool(
+            generate_natal_chart,
+            name="Consultante de Prueba",
+            date_str="2026-08-23",
+            time_str="15:33",
+            place_text="Buenos Aires, Argentina",
+        )
+        report = await run_in_threadpool(generate_report, chart)
+
+        pdf_path = REPORTS_DIR / "test-pdf.pdf"
+        await run_in_threadpool(generate_pdf, chart, report, str(pdf_path))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Falló la generación de prueba: {exc}"
+        ) from exc
+
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename="reporte_prueba.pdf",
     )
 
 
