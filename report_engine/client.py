@@ -29,4 +29,15 @@ def build_client(api_key: str | None = None) -> anthropic.Anthropic:
             "import os; os.environ['ANTHROPIC_API_KEY'] = getpass('API key: ') "
             "-- nunca hardcodees la key en el notebook."
         )
-    return anthropic.Anthropic(api_key=resolved_key)
+
+    client_kwargs = {"api_key": resolved_key}
+
+    # Las Personal API Keys de una cuenta con multiples workspaces requieren
+    # este header para que Anthropic sepa contra que workspace facturar la
+    # llamada -- sin el, la API devuelve 400. Opcional: si no esta seteada,
+    # el cliente se comporta como antes.
+    workspace_id = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+    if workspace_id:
+        client_kwargs["default_headers"] = {"anthropic-workspace-id": workspace_id}
+
+    return anthropic.Anthropic(**client_kwargs)
