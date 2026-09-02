@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import tempfile
 import uuid
 from datetime import date as date_type, time as time_type
 from pathlib import Path
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, field_validator
 
-from email_engine import EmailEngineError, send_report_email
+from email_engine import EmailEngineError, send_admin_alert_email, send_report_email
 from natal_engine import (
     EphemerisCalculationError,
     GeocodingTimeoutError,
@@ -60,6 +61,12 @@ FULL_REPORT_PRICE_ARS = 1000.00
 FULL_REPORT_TITLE = "Sidérea - Lectura Óptica Integral"
 
 _mp_sdk: mercadopago.SDK | None = None
+
+# Idempotencia rápida, en memoria, a nivel de request del webhook -- ver
+# advertencia sobre su límite en mercadopago_webhook() más abajo. La
+# defensa durable de verdad (sobrevive a un restart) es el archivo
+# marcador dentro de _fulfill_payment.
+processed_payments: set[str] = set()
 
 
 def _get_mp_sdk() -> mercadopago.SDK:
@@ -248,6 +255,29 @@ async def payment_success(request: Request):
     return templates.TemplateResponse(request, "success.html")
 
 
+def _alert_admin(payment_id: str, customer_email: str | None, stage: str, error: BaseException) -> None:
+    """Best-effort: avisa a SMTP_EMAIL que un pago aprobado no se entregó.
+
+    Nunca deja que un fallo acá se propague -- si ni la alerta se puede
+    mandar (ej. las mismas credenciales SMTP están rotas), el único
+    recurso que queda es el log, así que como mínimo lo dejamos en CRITICAL
+    para que sea imposible de no notar en los logs del servidor.
+    """
+    try:
+        send_admin_alert_email(
+            payment_id=payment_id,
+            customer_email=customer_email or "desconocido",
+            stage=stage,
+            error=error,
+        )
+    except Exception:
+        logger.critical(
+            "No se pudo enviar NI LA ALERTA de administrador para payment_id=%s "
+            "(stage=%s, error original=%r). Requiere revisión manual inmediata.",
+            payment_id, stage, error,
+        )
+
+
 def _fulfill_payment(payment_id: str) -> None:
     """Verifica un pago, genera el informe y lo entrega por mail.
 
@@ -256,25 +286,48 @@ def _fulfill_payment(payment_id: str) -> None:
     punta (sin async/await): no hay un loop de eventos esperándola, y
     Starlette ya la ejecuta fuera del hilo principal.
 
-    Idempotente a propósito: si Mercado Pago reintenta la notificación (lo
-    hace agresivamente) o alguien reenvía el mismo payment_id, un archivo
-    marcador evita regenerar el informe y remandar el mail -- cada
-    regeneración dispara ~8 llamadas reales a Claude, así que un duplicado
-    sin controlar sale caro.
+    Cada etapa (verificación del pago, natal_engine, report_engine/
+    Anthropic, pdf_engine/WeasyPrint, envío del mail) tiene su propio
+    try/except: un pago aprobado que no se puede entregar es plata
+    perdida y un cliente sin su informe, así que ninguna excepción se
+    traga en silencio -- todas disparan una alerta por mail a SMTP_EMAIL
+    con el payment_id, el email del cliente y el detalle del error, para
+    poder resolverlo a mano.
+
+    Idempotente con un archivo marcador (independiente del set en memoria
+    de mercadopago_webhook, que se pierde en cada restart): si Mercado
+    Pago reintenta la notificación o alguien reenvía el mismo payment_id
+    después de que YA se entregó, no se regenera el informe ni se
+    remanda el mail -- cada regeneración dispara ~8 llamadas reales a
+    Claude, así que un duplicado sin controlar sale caro. El marcador
+    solo se escribe tras un envío exitoso, para que un pago todavía
+    pendiente o con metadata incompleta pueda completarse en un reintento
+    posterior.
     """
     marker_path = REPORTS_DIR / f"webhook-{payment_id}.done"
     if marker_path.exists():
         logger.info("payment_id=%s ya fue entregado antes; se ignora la notificación duplicada.", payment_id)
         return
 
-    try:
-        sdk = _get_mp_sdk()
+    customer_email: str | None = None
+    pdf_path: str | None = None
 
-        payment_result = sdk.payment().get(payment_id)
-        payment_result.raise_for_status()
-        payment = payment_result["response"]
+    try:
+        # --- Etapa 1: verificar el pago contra la API real ------------------
+        try:
+            sdk = _get_mp_sdk()
+            payment_result = sdk.payment().get(payment_id)
+            payment_result.raise_for_status()
+            payment = payment_result["response"]
+        except (mercadopago.MercadoPagoError, requests.exceptions.RequestException, HTTPException) as exc:
+            logger.exception("No se pudo verificar payment_id=%s contra Mercado Pago.", payment_id)
+            _alert_admin(payment_id, customer_email, "verificacion_mercadopago", exc)
+            return
 
         if payment.get("status") != "approved":
+            # No es un error -- es un estado normal y transitorio (pendiente,
+            # rechazado). No alertamos; un reintento posterior de Mercado
+            # Pago, una vez que cambie el estado, va a completar la entrega.
             logger.info("payment_id=%s todavía no está aprobado (status=%s).", payment_id, payment.get("status"))
             return
 
@@ -282,33 +335,82 @@ def _fulfill_payment(payment_id: str) -> None:
         date_str = metadata.get("date")
         time_str = metadata.get("time")
         location = metadata.get("location")
-        email = metadata.get("email")
+        customer_email = metadata.get("email")
 
-        if not (date_str and time_str and location and email):
+        if not (date_str and time_str and location and customer_email):
             logger.warning("payment_id=%s aprobado pero falta metadata: %r", payment_id, metadata)
+            _alert_admin(
+                payment_id, customer_email, "metadata_incompleta",
+                ValueError(f"metadata incompleta en un pago aprobado: {metadata!r}"),
+            )
             return
 
-        chart = generate_natal_chart(
-            name="Consultante", date_str=date_str, time_str=time_str, place_text=location
-        )
-        report = generate_report(chart)
+        # --- Etapa 2: natal_engine -------------------------------------------
+        try:
+            chart = generate_natal_chart(
+                name="Consultante", date_str=date_str, time_str=time_str, place_text=location
+            )
+        except Exception as exc:
+            logger.exception("natal_engine falló para payment_id=%s.", payment_id)
+            _alert_admin(payment_id, customer_email, "natal_engine", exc)
+            return
 
-        pdf_path = REPORTS_DIR / f"{uuid.uuid4().hex}.pdf"
-        generate_pdf(chart, report, str(pdf_path))
+        # --- Etapa 3: report_engine (llamada real a la API de Anthropic) ----
+        try:
+            report = generate_report(chart)
+        except (MissingAPIKeyError, LLMGenerationError, LLMRefusalError) as exc:
+            logger.exception("report_engine (Anthropic) falló para payment_id=%s.", payment_id)
+            _alert_admin(payment_id, customer_email, "report_engine_anthropic", exc)
+            return
+        except Exception as exc:
+            logger.exception("Fallo inesperado en report_engine para payment_id=%s.", payment_id)
+            _alert_admin(payment_id, customer_email, "report_engine_anthropic", exc)
+            return
 
-        send_report_email(email, str(pdf_path))
-    except (mercadopago.MercadoPagoError, requests.exceptions.RequestException):
-        logger.exception("No se pudo verificar payment_id=%s contra Mercado Pago.", payment_id)
-        return
-    except EmailEngineError:
-        logger.exception("El informe de payment_id=%s se generó pero no se pudo enviar por mail.", payment_id)
-        return
-    except Exception:
-        logger.exception("Fallo inesperado procesando payment_id=%s en el webhook.", payment_id)
-        return
+        # --- Etapa 4: pdf_engine (WeasyPrint), a un archivo temporal --------
+        # Archivo temporal seguro en vez de un nombre propio bajo
+        # REPORTS_DIR: este PDF se manda por mail y se descarta, no se sirve
+        # después por URL como el de /api/generate-report -- no hace falta
+        # que sobreviva más allá de este envío, y el `finally` de abajo
+        # garantiza que se borre, ocurra un error o no.
+        tmp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        tmp_file.close()
+        pdf_path = tmp_file.name
 
-    marker_path.touch()
-    logger.info("Informe entregado por mail a %s (payment_id=%s).", email, payment_id)
+        try:
+            generate_pdf(chart, report, pdf_path)
+        except PDFExportError as exc:
+            logger.exception("pdf_engine (WeasyPrint) falló para payment_id=%s.", payment_id)
+            _alert_admin(payment_id, customer_email, "pdf_engine_weasyprint", exc)
+            return
+        except Exception as exc:
+            logger.exception("Fallo inesperado en pdf_engine para payment_id=%s.", payment_id)
+            _alert_admin(payment_id, customer_email, "pdf_engine_weasyprint", exc)
+            return
+
+        # --- Etapa 5: entrega por mail al cliente ----------------------------
+        try:
+            send_report_email(customer_email, pdf_path)
+        except EmailEngineError as exc:
+            logger.exception("No se pudo enviar el informe a %s (payment_id=%s).", customer_email, payment_id)
+            _alert_admin(payment_id, customer_email, "email_delivery", exc)
+            return
+
+        marker_path.touch()
+        logger.info("Informe entregado por mail a %s (payment_id=%s).", customer_email, payment_id)
+
+    except Exception as exc:
+        # Red de seguridad final: cualquier cosa no prevista en las etapas de
+        # arriba (un bug propio, algo que se nos escapó) tampoco se pierde en
+        # silencio.
+        logger.exception("Fallo no clasificado procesando payment_id=%s.", payment_id)
+        _alert_admin(payment_id, customer_email, "desconocido", exc)
+    finally:
+        if pdf_path:
+            try:
+                os.unlink(pdf_path)
+            except OSError:
+                pass
 
 
 @app.post("/api/webhook")
@@ -325,6 +427,19 @@ async def mercadopago_webhook(request: Request, background_tasks: BackgroundTask
     {"type": "payment", "data": {"id": "..."}}) como el IPN legado
     (query string ?topic=payment&id=...), porque Mercado Pago todavía
     manda ambos según cómo esté configurada la integración.
+
+    Idempotencia básica en memoria: si el payment_id ya está en
+    `processed_payments`, no se agenda nada de nuevo. OJO -- esto es un
+    set en memoria del proceso, así que se vacía en cada restart/deploy, y
+    marca el payment_id como visto apenas llega la PRIMERA notificación,
+    sea cual sea su estado. Para medios de pago con confirmación
+    asincrónica (transferencia, Rapipago, etc.) Mercado Pago puede mandar
+    primero un aviso en estado "pending" y más tarde el de "approved" para
+    el mismo payment_id -- con este set, ese segundo aviso legítimo
+    también quedaría descartado acá. La defensa que sí es durable y sí
+    distingue "ya entregado" de "todavía no aprobado" es el archivo
+    marcador dentro de _fulfill_payment; este set es solo una primera
+    barrera rápida contra reintentos casi inmediatos, tal como fue pedido.
     """
     payment_id = None
 
@@ -344,7 +459,12 @@ async def mercadopago_webhook(request: Request, background_tasks: BackgroundTask
             payment_id = query.get("data.id") or query.get("id")
 
     if payment_id:
-        background_tasks.add_task(_fulfill_payment, str(payment_id))
+        payment_id = str(payment_id)
+        if payment_id in processed_payments:
+            logger.info("payment_id=%s ya está en processed_payments; se ignora el webhook duplicado.", payment_id)
+            return {"status": "already_processed"}
+        processed_payments.add(payment_id)
+        background_tasks.add_task(_fulfill_payment, payment_id)
     else:
         logger.info("Webhook recibido sin payment_id reconocible, se ignora: %r", body)
 

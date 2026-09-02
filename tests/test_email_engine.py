@@ -6,7 +6,9 @@ from email_engine import (
     ATTACHMENT_FILENAME,
     EMAIL_SUBJECT,
     EmailEngineError,
+    build_admin_alert_message,
     build_message,
+    send_admin_alert_email,
     send_report_email,
 )
 
@@ -52,3 +54,34 @@ def test_send_report_email_raises_without_credentials(fake_pdf, monkeypatch):
 
     with pytest.raises(EmailEngineError):
         send_report_email("comprador@example.com", fake_pdf)
+
+
+def test_build_admin_alert_message_goes_to_the_admin_itself():
+    message = build_admin_alert_message(
+        "admin@siderea.com", "pay-123", "comprador@example.com", "pdf_engine_weasyprint",
+        RuntimeError("boom"),
+    )
+    assert message["From"] == "admin@siderea.com"
+    assert message["To"] == "admin@siderea.com"
+    assert "pay-123" in message["Subject"]
+
+
+def test_build_admin_alert_message_includes_diagnostic_details():
+    message = build_admin_alert_message(
+        "admin@siderea.com", "pay-123", "comprador@example.com", "pdf_engine_weasyprint",
+        RuntimeError("boom"),
+    )
+    body = message.get_payload(decode=True).decode("utf-8")
+    assert "pay-123" in body
+    assert "comprador@example.com" in body
+    assert "pdf_engine_weasyprint" in body
+    assert "RuntimeError" in body
+    assert "boom" in body
+
+
+def test_send_admin_alert_email_raises_without_credentials(monkeypatch):
+    monkeypatch.delenv("SMTP_EMAIL", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+
+    with pytest.raises(EmailEngineError):
+        send_admin_alert_email("pay-123", "comprador@example.com", "natal_engine", RuntimeError("boom"))
