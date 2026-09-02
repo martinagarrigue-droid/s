@@ -8,9 +8,20 @@ from natal_engine.exceptions import GeocodingTimeoutError, LocationNotFoundError
 
 _GEOCODER_USER_AGENT = "natal_chart_engine_mvp"
 
-# TimezoneFinder carga un indice geoespacial en memoria; se instancia una
-# sola vez a nivel de modulo para no pagar ese costo en cada llamada.
-_timezone_finder = TimezoneFinder()
+# TimezoneFinder carga un indice geoespacial en memoria (varios MB) al
+# construirse. Perezoso a proposito: si se instanciara a nivel de modulo,
+# ese costo se pagaria al *importar* este archivo -- es decir, al arrancar
+# el servidor, antes de que uvicorn llegue a bindear el puerto -- en vez de
+# la primera vez que hace falta resolver una zona horaria. Se cachea en
+# este global para seguir pagando el costo una sola vez por proceso.
+_timezone_finder: TimezoneFinder | None = None
+
+
+def _get_timezone_finder() -> TimezoneFinder:
+    global _timezone_finder
+    if _timezone_finder is None:
+        _timezone_finder = TimezoneFinder()
+    return _timezone_finder
 
 
 def geocode_place(place_text: str, timeout: int = 10) -> tuple[float, float, str]:
@@ -46,10 +57,11 @@ def geocode_place(place_text: str, timeout: int = 10) -> tuple[float, float, str
 
 def resolve_timezone(latitude: float, longitude: float) -> str:
     """Devuelve el nombre IANA de timezone (ej. 'America/Buenos_Aires')."""
-    tz_name = _timezone_finder.timezone_at(lat=latitude, lng=longitude)
+    timezone_finder = _get_timezone_finder()
+    tz_name = timezone_finder.timezone_at(lat=latitude, lng=longitude)
     if tz_name is None:
         # timezone_at puede devolver None en coordenadas oceanicas remotas.
-        tz_name = _timezone_finder.closest_timezone_at(lat=latitude, lng=longitude)
+        tz_name = timezone_finder.closest_timezone_at(lat=latitude, lng=longitude)
     if tz_name is None:
         raise LocationNotFoundError(
             f"No se pudo resolver timezone para lat={latitude}, lon={longitude}."
