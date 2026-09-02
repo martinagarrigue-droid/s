@@ -86,9 +86,11 @@ def send_report_email(to_email: str, pdf_path: str) -> None:
             "enviar el informe por correo."
         )
 
-    message = build_message(sender, to_email, pdf_path)
-
+    # build_message() va DENTRO del try -- si el PDF no se puede leer del
+    # disco (ej. OSError/FileNotFoundError), el llamador solo espera
+    # EmailEngineError de esta función, no una excepción cruda de I/O.
     try:
+        message = build_message(sender, to_email, pdf_path)
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
             server.starttls()
             server.login(sender, password)

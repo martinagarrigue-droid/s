@@ -318,7 +318,7 @@ def _fulfill_payment(payment_id: str) -> None:
             sdk = _get_mp_sdk()
             payment_result = sdk.payment().get(payment_id)
             payment_result.raise_for_status()
-            payment = payment_result["response"]
+            payment = payment_result.get("response") or {}
         except (mercadopago.MercadoPagoError, requests.exceptions.RequestException, HTTPException) as exc:
             logger.exception("No se pudo verificar payment_id=%s contra Mercado Pago.", payment_id)
             _alert_admin(payment_id, customer_email, "verificacion_mercadopago", exc)
@@ -460,6 +460,15 @@ async def mercadopago_webhook(request: Request, background_tasks: BackgroundTask
 
     if payment_id:
         payment_id = str(payment_id)
+        # payment_id llega de un POST público, sin verificación de firma --
+        # nunca confiar en su forma. Los IDs de pago de Mercado Pago son
+        # siempre numéricos; validar esto ANTES de tocar el filesystem
+        # (marker_path en _fulfill_payment se arma con f"...{payment_id}...")
+        # o de mandarlo a la API evita que un valor con "../" o similar
+        # termine construyendo una ruta fuera de REPORTS_DIR.
+        if not payment_id.isdigit():
+            logger.warning("payment_id con formato inesperado, se ignora: %r", payment_id)
+            return {"status": "ignored"}
         if payment_id in processed_payments:
             logger.info("payment_id=%s ya está en processed_payments; se ignora el webhook duplicado.", payment_id)
             return {"status": "already_processed"}
@@ -530,7 +539,7 @@ async def create_preference(payload: ChartRequest, request: Request):
             status_code=502, detail="No pudimos conectar con Mercado Pago. Probá de nuevo en un rato."
         ) from exc
 
-    preference = result["response"]
+    preference = result.get("response") or {}
     return {
         "preference_id": preference.get("id"),
         "init_point": preference.get("init_point") or preference.get("sandbox_init_point"),

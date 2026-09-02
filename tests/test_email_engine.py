@@ -56,6 +56,19 @@ def test_send_report_email_raises_without_credentials(fake_pdf, monkeypatch):
         send_report_email("comprador@example.com", fake_pdf)
 
 
+def test_send_report_email_wraps_missing_pdf_as_email_engine_error(tmp_path, monkeypatch):
+    # build_message() debe vivir dentro del try/except de send_report_email:
+    # si el PDF no existe en disco, el llamador solo debería ver
+    # EmailEngineError, nunca un FileNotFoundError/OSError crudo.
+    monkeypatch.setenv("SMTP_EMAIL", "sender@siderea.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "fake-password")
+
+    missing_pdf = str(tmp_path / "no-existe.pdf")
+
+    with pytest.raises(EmailEngineError):
+        send_report_email("comprador@example.com", missing_pdf)
+
+
 def test_build_admin_alert_message_goes_to_the_admin_itself():
     message = build_admin_alert_message(
         "admin@siderea.com", "pay-123", "comprador@example.com", "pdf_engine_weasyprint",
