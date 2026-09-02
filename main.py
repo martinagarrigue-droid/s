@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
 import re
 import tempfile
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date as date_type, time as time_type
 from pathlib import Path
 
@@ -37,13 +39,97 @@ from teaser_copy import build_teaser
 
 logger = logging.getLogger("siderea.webhook")
 
-app = FastAPI(title="Sidérea")
+# REPORTS_DIR es la cola transaccional persistente (.pending/.lock/.done) --
+# ver _claim_payment/_fulfill_payment/_recover_pending_payments. Configurable
+# vía env var a propósito: el default (una carpeta relativa al código) vive
+# en el disco EFÍMERO de un servicio web de Render -- se borra en cada
+# redeploy y no está garantizado que sobreviva un restart de infraestructura.
+# Sin un disco persistente de Render montado y REPORTS_DIR apuntando ahí,
+# esta cola no cumple "cero pérdida de transacciones ante reinicios
+# abruptos": la recuperación al arrancar escanearía un disco nuevo y vacío,
+# sin encontrar nada que recuperar -- fallaría en silencio, dando falsa
+# confianza. Ver el resumen de esta entrega para el detalle.
+REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", str(Path(__file__).resolve().parent / "generated_reports")))
+REPORTS_DIR.mkdir(exist_ok=True, parents=True)
+
+_PENDING_PAYMENT_ID_RE = re.compile(r"^webhook-(\d+)\.pending$")
+
+
+def _find_recoverable_payment_ids() -> list[str]:
+    """Escanea REPORTS_DIR por transacciones interrumpidas (.pending sin .done).
+
+    Función pura y testeable a propósito, separada de _recover_pending_payments
+    (que además agenda las tareas de fondo, algo que solo tiene sentido
+    correr dentro del lifespan real de la app).
+
+    Por cada .pending encontrado, si también hay un .lock para el mismo
+    payment_id, se lo borra antes de devolver ese payment_id -- esta función
+    corre durante el arranque, ANTES de que el server acepte tráfico, así
+    que para una única instancia (el caso por default salvo que se escale
+    horizontalmente) cualquier .lock que quede en este momento es de un
+    proceso anterior que ya está muerto, nunca de un trabajo legítimamente
+    en curso.
+
+    ADVERTENCIA de alcance: con múltiples instancias/workers corriendo en
+    paralelo sobre el mismo disco compartido, esta asunción no se sostiene
+    -- un .lock podría pertenecer a un proceso hermano todavía vivo. Ese
+    escenario necesita un lock real con expiración (o un broker externo),
+    no archivos locales; no está resuelto acá.
+    """
+    payment_ids = []
+    for pending_path in sorted(REPORTS_DIR.glob("webhook-*.pending")):
+        match = _PENDING_PAYMENT_ID_RE.match(pending_path.name)
+        if not match:
+            logger.warning("Archivo .pending con nombre inesperado, se ignora: %s", pending_path.name)
+            continue
+
+        payment_id = match.group(1)
+
+        stale_lock = REPORTS_DIR / f"webhook-{payment_id}.lock"
+        if stale_lock.exists():
+            logger.warning(
+                "payment_id=%s tenía un .lock de un proceso anterior interrumpido; "
+                "se limpia antes de reintentar.", payment_id,
+            )
+            try:
+                stale_lock.unlink()
+            except OSError:
+                pass
+
+        payment_ids.append(payment_id)
+
+    return payment_ids
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Rutina de resurrección: reencola al arrancar cualquier pago que haya
+    quedado en .pending de un proceso anterior interrumpido (deploy, OOM,
+    restart de infraestructura) antes de terminar -- así ese pago no se
+    pierde para siempre solo porque Mercado Pago ya recibió su 200 OK y
+    nunca va a reintentar la notificación.
+    """
+    payment_ids = _find_recoverable_payment_ids()
+    if payment_ids:
+        logger.warning(
+            "Recuperación de arranque: %d pago(s) quedaron interrumpidos. Reencolando: %s",
+            len(payment_ids), payment_ids,
+        )
+        # Referencia obligatoria: un asyncio.Task sin nada que lo referencie
+        # puede ser recolectado por el garbage collector a mitad de camino
+        # ("Task was destroyed but it is pending"). app.state vive mientras
+        # vive la app, así que ancla las tareas hasta que terminen solas.
+        app.state.recovery_tasks = [
+            asyncio.create_task(run_in_threadpool(_fulfill_payment, payment_id))
+            for payment_id in payment_ids
+        ]
+    yield
+
+
+app = FastAPI(title="Sidérea", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
-REPORTS_DIR = Path(__file__).resolve().parent / "generated_reports"
-REPORTS_DIR.mkdir(exist_ok=True)
 
 _REPORT_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
@@ -62,11 +148,33 @@ FULL_REPORT_TITLE = "Sidérea - Lectura Óptica Integral"
 
 _mp_sdk: mercadopago.SDK | None = None
 
-# Idempotencia rápida, en memoria, a nivel de request del webhook -- ver
-# advertencia sobre su límite en mercadopago_webhook() más abajo. La
-# defensa durable de verdad (sobrevive a un restart) es el archivo
-# marcador dentro de _fulfill_payment.
-processed_payments: set[str] = set()
+
+def _claim_payment(payment_id: str) -> bool:
+    """Reclama atómicamente un payment_id para su procesamiento.
+
+    Usa creación exclusiva de archivo (Path.touch(exist_ok=False), que
+    internamente es open() con O_EXCL) como primitiva atómica real a nivel
+    de sistema operativo -- a diferencia de un "if not exists(): create()",
+    que tiene una ventana de carrera entre el chequeo y la creación donde
+    dos llamadas concurrentes pueden pasar las dos, esto no puede ser
+    ganado por más de una a la vez: el sistema operativo garantiza que como
+    mucho una sola creación exclusiva tiene éxito.
+
+    Devuelve True si ESTA llamada reclamó el pago (nadie lo tenía reclamado
+    todavía); False si ya estaba reclamado -- una entrega duplicada de
+    Mercado Pago llegó primero (incluso en otro worker/proceso, si
+    comparten disco) o ya está completamente entregado.
+    """
+    done_path = REPORTS_DIR / f"webhook-{payment_id}.done"
+    if done_path.exists():
+        return False
+
+    pending_path = REPORTS_DIR / f"webhook-{payment_id}.pending"
+    try:
+        pending_path.touch(exist_ok=False)
+        return True
+    except FileExistsError:
+        return False
 
 
 def _get_mp_sdk() -> mercadopago.SDK:
@@ -281,10 +389,12 @@ def _alert_admin(payment_id: str, customer_email: str | None, stage: str, error:
 def _fulfill_payment(payment_id: str) -> None:
     """Verifica un pago, genera el informe y lo entrega por mail.
 
-    Corre en un hilo de BackgroundTasks después de que /api/webhook ya le
-    respondió 200 OK a Mercado Pago -- por eso es sincrónica de punta a
-    punta (sin async/await): no hay un loop de eventos esperándola, y
-    Starlette ya la ejecuta fuera del hilo principal.
+    Se invoca desde dos lugares: /api/webhook (recién claimeado un
+    payment_id nuevo) y _recover_pending_payments en el arranque (un
+    .pending sobrevivió a un proceso anterior interrumpido). Corre fuera
+    del hilo principal en ambos casos (BackgroundTasks o
+    run_in_threadpool) -- por eso es sincrónica de punta a punta, sin
+    async/await.
 
     Cada etapa (verificación del pago, natal_engine, report_engine/
     Anthropic, pdf_engine/WeasyPrint, envío del mail) tiene su propio
@@ -294,19 +404,38 @@ def _fulfill_payment(payment_id: str) -> None:
     con el payment_id, el email del cliente y el detalle del error, para
     poder resolverlo a mano.
 
-    Idempotente con un archivo marcador (independiente del set en memoria
-    de mercadopago_webhook, que se pierde en cada restart): si Mercado
-    Pago reintenta la notificación o alguien reenvía el mismo payment_id
-    después de que YA se entregó, no se regenera el informe ni se
-    remanda el mail -- cada regeneración dispara ~8 llamadas reales a
-    Claude, así que un duplicado sin controlar sale caro. El marcador
-    solo se escribe tras un envío exitoso, para que un pago todavía
-    pendiente o con metadata incompleta pueda completarse en un reintento
-    posterior.
+    Cola transaccional persistente (.pending/.lock/.done), pensada para
+    sobrevivir a un reinicio abrupto del proceso, no solo a una
+    notificación duplicada:
+    - .pending ya existe al entrar acá (lo crea _claim_payment antes de
+      responder 200 a Mercado Pago, o ya estaba ahí si esto es una
+      recuperación de arranque). Se borra recién cuando TODO termina bien.
+    - .lock se reclama acá mismo, de forma atómica, para que dos intentos
+      concurrentes de procesar el MISMO payment_id (una recuperación de
+      arranque solapada con una notificación real, o dos workers sobre el
+      mismo disco) no dupliquen el trabajo -- el que no consigue el lock
+      se retira sin tocar nada. Se libera siempre en el `finally`, haya
+      éxito o error, para no bloquear un reintento futuro.
+    - .done se crea solo tras un envío de mail exitoso. Mientras no exista,
+      un pago sigue siendo candidato a reintento (por una notificación
+      posterior de Mercado Pago o por la recuperación de arranque) --
+      justamente lo que se necesita si el proceso muere a mitad de camino.
     """
-    marker_path = REPORTS_DIR / f"webhook-{payment_id}.done"
-    if marker_path.exists():
+    done_path = REPORTS_DIR / f"webhook-{payment_id}.done"
+    pending_path = REPORTS_DIR / f"webhook-{payment_id}.pending"
+    lock_path = REPORTS_DIR / f"webhook-{payment_id}.lock"
+
+    if done_path.exists():
         logger.info("payment_id=%s ya fue entregado antes; se ignora la notificación duplicada.", payment_id)
+        return
+
+    try:
+        lock_path.touch(exist_ok=False)
+    except FileExistsError:
+        logger.info(
+            "payment_id=%s ya se está procesando en otro hilo/proceso; se omite este intento.",
+            payment_id,
+        )
         return
 
     customer_email: str | None = None
@@ -396,13 +525,25 @@ def _fulfill_payment(payment_id: str) -> None:
             _alert_admin(payment_id, customer_email, "email_delivery", exc)
             return
 
-        marker_path.touch()
+        # Transición atómica de estado: primero el nuevo estado (.done),
+        # después se retira el viejo (.pending). Si el proceso muriera
+        # justo entre estas dos líneas, .pending Y .done coexistirían --
+        # pero eso es seguro: el chequeo de done_path.exists() al principio
+        # de esta función sigue ganando, así que un reintento posterior no
+        # reprocesaría ni remandaría el mail.
+        done_path.touch()
+        try:
+            pending_path.unlink()
+        except FileNotFoundError:
+            pass
         logger.info("Informe entregado por mail a %s (payment_id=%s).", customer_email, payment_id)
 
     except Exception as exc:
         # Red de seguridad final: cualquier cosa no prevista en las etapas de
         # arriba (un bug propio, algo que se nos escapó) tampoco se pierde en
-        # silencio.
+        # silencio. .pending queda intacto a propósito -- un reintento
+        # (notificación posterior o recuperación de arranque) todavía puede
+        # completar la entrega.
         logger.exception("Fallo no clasificado procesando payment_id=%s.", payment_id)
         _alert_admin(payment_id, customer_email, "desconocido", exc)
     finally:
@@ -411,35 +552,36 @@ def _fulfill_payment(payment_id: str) -> None:
                 os.unlink(pdf_path)
             except OSError:
                 pass
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 @app.post("/api/webhook")
 async def mercadopago_webhook(request: Request, background_tasks: BackgroundTasks):
     """Notificaciones (IPN/Webhooks) de Mercado Pago.
 
-    Respondemos 200 OK enseguida, sin esperar a verificar nada -- Mercado
-    Pago reintenta agresivamente si la respuesta tarda o falla, y no
-    necesitamos que espere a que generemos el informe. El trabajo real
-    (verificar el pago, generar el PDF, mandar el mail) queda en
-    BackgroundTasks, después de que esta respuesta ya salió.
-
     Acepta tanto el formato actual de webhooks (JSON body
     {"type": "payment", "data": {"id": "..."}}) como el IPN legado
     (query string ?topic=payment&id=...), porque Mercado Pago todavía
     manda ambos según cómo esté configurada la integración.
 
-    Idempotencia básica en memoria: si el payment_id ya está en
-    `processed_payments`, no se agenda nada de nuevo. OJO -- esto es un
-    set en memoria del proceso, así que se vacía en cada restart/deploy, y
-    marca el payment_id como visto apenas llega la PRIMERA notificación,
-    sea cual sea su estado. Para medios de pago con confirmación
-    asincrónica (transferencia, Rapipago, etc.) Mercado Pago puede mandar
-    primero un aviso en estado "pending" y más tarde el de "approved" para
-    el mismo payment_id -- con este set, ese segundo aviso legítimo
-    también quedaría descartado acá. La defensa que sí es durable y sí
-    distingue "ya entregado" de "todavía no aprobado" es el archivo
-    marcador dentro de _fulfill_payment; este set es solo una primera
-    barrera rápida contra reintentos casi inmediatos, tal como fue pedido.
+    Registro garantizado ANTES del 200: si el payment_id es válido,
+    _claim_payment() crea su archivo .pending en disco de forma síncrona,
+    en esta misma request, antes de que la función retorne. Esto pasa
+    ANTES de agendar el BackgroundTask y ANTES del `return` que produce el
+    200 OK -- es la garantía real. Si el proceso se cae un milisegundo
+    después de que Mercado Pago reciba ese 200 (un redeploy, un restart
+    por límite de recursos) y la BackgroundTask nunca llega a correr, el
+    .pending ya está en disco: no se perdió, y _recover_pending_payments
+    lo va a reencolar en el próximo arranque (ver advertencia sobre disco
+    persistente junto a REPORTS_DIR más arriba en este archivo).
+
+    _claim_payment() es también la defensa de concurrencia: usa creación
+    exclusiva de archivo, atómica a nivel de sistema operativo, así que
+    dos notificaciones casi simultáneas para el mismo payment_id (o dos
+    workers sobre el mismo disco) nunca agendan la tarea dos veces.
     """
     payment_id = None
 
@@ -462,18 +604,20 @@ async def mercadopago_webhook(request: Request, background_tasks: BackgroundTask
         payment_id = str(payment_id)
         # payment_id llega de un POST público, sin verificación de firma --
         # nunca confiar en su forma. Los IDs de pago de Mercado Pago son
-        # siempre numéricos; validar esto ANTES de tocar el filesystem
-        # (marker_path en _fulfill_payment se arma con f"...{payment_id}...")
-        # o de mandarlo a la API evita que un valor con "../" o similar
-        # termine construyendo una ruta fuera de REPORTS_DIR.
+        # siempre numéricos; validar esto ANTES de tocar el filesystem o de
+        # mandarlo a la API evita que un valor con "../" o similar termine
+        # construyendo una ruta fuera de REPORTS_DIR.
         if not payment_id.isdigit():
             logger.warning("payment_id con formato inesperado, se ignora: %r", payment_id)
             return {"status": "ignored"}
-        if payment_id in processed_payments:
-            logger.info("payment_id=%s ya está en processed_payments; se ignora el webhook duplicado.", payment_id)
-            return {"status": "already_processed"}
-        processed_payments.add(payment_id)
-        background_tasks.add_task(_fulfill_payment, payment_id)
+
+        if _claim_payment(payment_id):
+            background_tasks.add_task(_fulfill_payment, payment_id)
+        else:
+            logger.info(
+                "payment_id=%s ya estaba reclamado (en curso o ya entregado); no se agenda de nuevo.",
+                payment_id,
+            )
     else:
         logger.info("Webhook recibido sin payment_id reconocible, se ignora: %r", body)
 
