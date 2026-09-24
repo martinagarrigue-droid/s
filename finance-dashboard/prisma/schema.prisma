@@ -1,0 +1,315 @@
+// ============================================================================
+// FINANCE DASHBOARD - DATA MODEL (Paso 1)
+// Todos los montos se guardan en unidades menores (centavos/centésimos) como
+// Int para evitar errores de redondeo con floats. 1000 ARS -> 100000.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Currency {
+  ARS
+  USD
+}
+
+enum AccountType {
+  CHECKING      // cuenta corriente / caja de ahorro
+  MONEY_MARKET  // FCI money market / cuenta remunerada (pesos transaccionales)
+  BROKERAGE     // cuenta comitente / broker (acciones, ETFs, CEDEARs)
+  CASH          // efectivo
+  CREDIT_CARD   // tarjeta de crédito (pasivo)
+}
+
+enum TransactionType {
+  INCOME    // ingreso (fijo o variable)
+  EXPENSE   // gasto (se clasifica en 50/30/20)
+  TRANSFER  // movimiento entre cuentas propias
+  YIELD     // rendimiento devengado en FCI/cuenta remunerada
+}
+
+// Regla 50/30/20
+enum BudgetCategory {
+  NECESIDADES        // 50%
+  ESTILO_VIDA        // 30%
+  AHORRO_INVERSION   // 20%
+}
+
+enum IncomeType {
+  FIXED     // salario corporativo, recurrente
+  VARIABLE  // ingresos pasivos / escalables (e-commerce, productos digitales)
+}
+
+// Marca si la fuente de ingreso es "escalable" (no depende linealmente de horas trabajadas)
+enum IncomeScalability {
+  LINEAR
+  SCALABLE
+}
+
+enum AssetType {
+  STOCK
+  ETF
+  CEDEAR
+}
+
+enum ExchangeRateType {
+  OFICIAL
+  MEP
+  CCL
+  BLUE
+  CRYPTO
+}
+
+enum RecurrenceFrequency {
+  NONE
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// ---------------------------------------------------------------------------
+// USER
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  baseCurrency Currency @default(ARS) // moneda "de referencia" para mostrar totales por default
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts        Account[]
+  incomeSources   IncomeSource[]
+  assets          Asset[]
+  budgetSettings  BudgetSettings?
+  emergencyFund   EmergencyFund?
+  exchangeRates   ExchangeRate[]
+  netWorthSnapshots NetWorthSnapshot[]
+}
+
+// ---------------------------------------------------------------------------
+// CUENTAS (incluye el módulo de liquidez / pesos transaccionales)
+// ---------------------------------------------------------------------------
+
+model Account {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  name      String
+  type      AccountType
+  currency  Currency
+  // Balance cacheado para lecturas rápidas del dashboard; se recalcula
+  // a partir de las transacciones (fuente de verdad = ledger).
+  cachedBalance Int      @default(0)
+
+  // Solo relevante para type = MONEY_MARKET: separa capital aportado
+  // ("inmovilizado") del rendimiento acumulado que ya está generando interés.
+  // Ambos se derivan sumando transacciones TRANSFER/INCOME vs YIELD sobre
+  // esta cuenta, pero se cachean acá para no recalcular en cada render.
+  cachedPrincipal Int?   // capital aportado
+  cachedYield     Int?   // rendimiento acumulado
+
+  isArchived Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  transactionsOut Transaction[] @relation("SourceAccount")
+  transactionsIn  Transaction[] @relation("DestinationAccount")
+  assets          Asset[]
+  emergencyFundLinks EmergencyFundAccount[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACCIONES (núcleo del sistema, carga de fricción cero)
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  id          String          @id @default(cuid())
+  accountId   String
+  account     Account         @relation("SourceAccount", fields: [accountId], references: [id])
+
+  type        TransactionType
+  amount      Int             // unidades menores, siempre positivo
+  currency    Currency        // moneda nativa de la transacción (= currency de la cuenta origen)
+
+  date        DateTime        @default(now())
+  description String?
+  merchant    String?         // texto libre, para autocompletar rápido en el form
+
+  // Solo aplica a EXPENSE (y opcionalmente a TRANSFER hacia cuentas de
+  // ahorro/inversión, para que cuenten como el 20%).
+  budgetCategory BudgetCategory?
+
+  // Solo aplica a INCOME
+  incomeSourceId String?
+  incomeSource   IncomeSource? @relation(fields: [incomeSourceId], references: [id])
+
+  // Solo aplica a TRANSFER: cuenta destino
+  destinationAccountId String?
+  destinationAccount    Account? @relation("DestinationAccount", fields: [destinationAccountId], references: [id])
+
+  isRecurring Boolean @default(false)
+  recurrence  RecurrenceFrequency @default(NONE)
+
+  tags        String[] // libre, ej. ["viaje", "reembolsable"]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([accountId, date])
+  @@index([type, budgetCategory])
+}
+
+// ---------------------------------------------------------------------------
+// PRESUPUESTO 50/30/20
+// ---------------------------------------------------------------------------
+
+model BudgetSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  necesidadesPct      Int @default(50)
+  estiloVidaPct       Int @default(30)
+  ahorroInversionPct  Int @default(20)
+
+  // Umbral de alerta visual: % del ingreso mensual a partir del cual se
+  // dispara el aviso, por categoría (ej. alertar si Estilo de Vida > 32%)
+  necesidadesAlertPct     Int @default(50)
+  estiloVidaAlertPct      Int @default(30)
+  ahorroInversionAlertPct Int @default(20)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// INGRESOS (fijos y variables/pasivos)
+// ---------------------------------------------------------------------------
+
+model IncomeSource {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  name          String            // ej. "Salario Corporativo", "Ventas Etsy"
+  type          IncomeType
+  scalability   IncomeScalability
+  currency      Currency
+  // Para ingresos fijos recurrentes: monto esperado y frecuencia.
+  expectedAmount Int?
+  frequency      RecurrenceFrequency @default(NONE)
+  isActive       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// TIPO DE CAMBIO (MEP/CCL/Oficial/Blue)
+// ---------------------------------------------------------------------------
+
+model ExchangeRate {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      ExchangeRateType
+  date      DateTime         @default(now())
+  // Valor: cuántos ARS equivalen a 1 USD bajo este tipo de cambio.
+  value     Float
+  source    String?          // "manual" | "api:bluelytics" | etc.
+  createdAt DateTime         @default(now())
+
+  @@index([userId, type, date])
+}
+
+// ---------------------------------------------------------------------------
+// ACTIVOS FINANCIEROS (acciones, ETFs, CEDEARs) -> P&L
+// ---------------------------------------------------------------------------
+
+model Asset {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  accountId   String?
+  account     Account?  @relation(fields: [accountId], references: [id])
+
+  ticker      String    // ej. "SPY", "AAPL", "AAPL.BA" (CEDEAR)
+  name        String?
+  type        AssetType
+  currency    Currency  // moneda en la que se compró (USD para SPY, ARS para CEDEARs típicamente)
+
+  quantity      Float   // permite fracciones (CEDEARs, ETFs fraccionados)
+  avgCostPerUnit Int    // costo promedio de compra, unidades menores
+
+  // Cache del último precio de mercado para no depender de la API en cada
+  // render; se refresca desde el backend (Paso 2).
+  lastPrice          Int?
+  lastPriceUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, ticker])
+}
+
+// ---------------------------------------------------------------------------
+// FONDO DE EMERGENCIA (meses de supervivencia)
+// ---------------------------------------------------------------------------
+
+model EmergencyFund {
+  id            String @id @default(cuid())
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id])
+  targetMonths  Int    @default(6)
+
+  // Si es null, se calcula automáticamente como el promedio de gasto real
+  // de los últimos N meses (lógica en Paso 2).
+  monthlyExpenseOverride Int?
+
+  linkedAccounts EmergencyFundAccount[]
+
+  updatedAt DateTime @updatedAt
+}
+
+// Tabla puente: el fondo de emergencia puede estar repartido en varias cuentas
+model EmergencyFundAccount {
+  emergencyFundId String
+  emergencyFund   EmergencyFund @relation(fields: [emergencyFundId], references: [id])
+  accountId       String
+  account         Account       @relation(fields: [accountId], references: [id])
+
+  @@id([emergencyFundId, accountId])
+}
+
+// ---------------------------------------------------------------------------
+// HISTÓRICO DE PATRIMONIO NETO (para gráficos de tendencia, Fase futura)
+// ---------------------------------------------------------------------------
+
+model NetWorthSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  date             DateTime @default(now())
+  totalARS         Int
+  totalUSD         Int
+  exchangeRateUsed Float    // MEP/CCL usado para la conversión de ese snapshot
+  createdAt        DateTime @default(now())
+
+  @@index([userId, date])
+}
